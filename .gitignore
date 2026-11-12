@@ -1,0 +1,8 @@
+# Photos envoyées par les utilisateurs (profil, journées) : jamais dans le dépôt
+storage/*
+!storage/.htaccess
+# Fichiers locaux
+*.log
+.env
+.DS_Store
+Thumbs.db
