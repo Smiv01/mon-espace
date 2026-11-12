@@ -98,6 +98,24 @@ function day_expiry_text($expiresAt)
     return $days <= 1 ? "Disparaît d'ici demain" : 'Disparaît dans ' . $days . ' jours';
 }
 
+/** Fichiers envoyés pour un champ (multiple ou simple), en liste de tableaux [name, tmp_name, size, error, ...]. */
+function day_uploaded_files($multiKey, $singleKey)
+{
+    $out = [];
+    if (isset($_FILES[$multiKey]) && is_array($_FILES[$multiKey]['name'])) {
+        $f = $_FILES[$multiKey];
+        foreach (array_keys($f['name']) as $i) {
+            if ((int)$f['error'][$i] === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $out[] = ['name' => $f['name'][$i], 'tmp_name' => $f['tmp_name'][$i], 'size' => $f['size'][$i], 'error' => $f['error'][$i], 'type' => $f['type'][$i]];
+        }
+    } elseif (isset($_FILES[$singleKey]) && is_array($_FILES[$singleKey]) && !is_array($_FILES[$singleKey]['name']) && (int)$_FILES[$singleKey]['error'] !== UPLOAD_ERR_NO_FILE) {
+        $out[] = $_FILES[$singleKey];
+    }
+    return $out;
+}
+
 /** Enregistre une photo de journée (réduite à 1280 px, ré-encodée en JPEG). Retourne [nom|null, erreur|null]. */
 function save_day_photo($file)
 {

@@ -37,14 +37,42 @@ if (is_post()) {
         } elseif ((int)$count->fetchColumn() >= 3000) {
             flash('error', 'Ce groupe a déjà 3000 souvenirs. Supprime-en quelques-uns pour continuer.');
         } else {
-            list($photo, $err) = save_day_photo(isset($_FILES['photo']) ? $_FILES['photo'] : null);
-            if ($err !== null) {
-                flash('error', $err);
-            } elseif ($body === '' && $photo === null) {
-                flash('error', 'Écris un message ou choisis une photo.');
-            } else {
+            $files = day_uploaded_files('photos', 'photo');
+            $room = 3000 - (int)$count->fetchColumn();
+            $made = 0;
+            $errors = [];
+            if (count($files) > 10) {
+                $errors[] = 'Maximum 10 photos à la fois : les suivantes ont été ignorées.';
+                $files = array_slice($files, 0, 10);
+            }
+            if (!$files) {
+                $files = [null];
+            }
+            foreach ($files as $i => $file) {
+                list($photo, $err) = save_day_photo($file);
+                if ($err !== null) {
+                    $errors[] = $err;
+                    continue;
+                }
+                $text = $made === 0 ? $body : '';
+                if ($text === '' && $photo === null) {
+                    continue;
+                }
+                if ($made >= $room) {
+                    $errors[] = 'Limite de 3000 souvenirs atteinte.';
+                    break;
+                }
                 db()->prepare('INSERT INTO day_posts (day_id, user_id, body, photo_path, created_at) VALUES (?, ?, ?, ?, ?)')
-                    ->execute([$did, $userId, $body !== '' ? $body : null, $photo, now()]);
+                    ->execute([$did, $userId, $text !== '' ? $text : null, $photo, now()]);
+                $made++;
+            }
+            if ($made === 0 && !$errors) {
+                $errors[] = 'Écris un message ou choisis une photo.';
+            }
+            if ($errors) {
+                flash('error', implode(' ', array_unique($errors)));
+            } elseif ($made > 1) {
+                flash('ok', $made . ' souvenirs publiés.');
             }
         }
     } elseif ($action === 'post_delete') {
@@ -182,7 +210,7 @@ app_open($title, 'journees.php', $user);
     <?= csrf_field() ?><?= once_field() ?><input type="hidden" name="action" value="post_add">
     <textarea class="input" name="body" rows="2" maxlength="1000" placeholder="Un message, un souvenir…" aria-label="Message"></textarea>
     <div class="compose-row">
-      <label class="btn compose-photo">📷 Photo<input class="file-hidden" type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label>
+      <label class="btn compose-photo">📷 Photos<input class="file-hidden" type="file" name="photos[]" multiple accept="image/jpeg,image/png,image/webp"></label>
       <button class="btn btn-primary" type="submit">Publier</button>
     </div>
     <p class="muted small" id="photo-name"></p>

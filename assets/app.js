@@ -56,15 +56,45 @@ document.querySelectorAll('[data-copy]').forEach(function (b) {
   });
 });
 
-// Ma Journée : affiche le nom de la photo choisie
+// Ma Journée : plusieurs photos à la fois, réduites sur le téléphone avant l'envoi (plus rapide, moins de données)
 (function () {
   var inp = document.querySelector('.compose input[type=file]');
   var out = document.getElementById('photo-name');
-  if (inp && out) {
-    inp.addEventListener('change', function () {
-      out.textContent = inp.files && inp.files[0] ? '📷 ' + inp.files[0].name : '';
+  if (!inp) { return; }
+  function shrink(file) {
+    return new Promise(function (resolve) {
+      if (!window.createImageBitmap || !window.DataTransfer || !/^image\/(jpeg|png|webp)$/.test(file.type)) { return resolve(file); }
+      createImageBitmap(file).then(function (bmp) {
+        var scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bmp.width * scale));
+        c.height = Math.max(1, Math.round(bmp.height * scale));
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(bmp, 0, 0, c.width, c.height);
+        c.toBlob(function (blob) {
+          resolve(blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.82);
+      }).catch(function () { resolve(file); });
     });
   }
+  inp.addEventListener('change', function () {
+    var files = Array.prototype.slice.call(inp.files || []);
+    if (out) { out.textContent = files.length ? '📷 ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + (files.length > 10 ? ' (10 maximum, les autres seront ignorées)' : '') : ''; }
+    if (!files.length || !window.DataTransfer) { return; }
+    var form = inp.form;
+    var submit = form ? form.querySelector('button[type=submit]') : null;
+    if (submit) { submit.disabled = true; }
+    Promise.all(files.slice(0, 10).map(shrink)).then(function (list) {
+      if (submit) { submit.disabled = false; }
+      try {
+        var dt = new DataTransfer();
+        list.forEach(function (f) { dt.items.add(f); });
+        inp.files = dt.files;
+      } catch (e) {}
+    });
+  });
 })();
 
 // Application installable : service worker + bouton « Installer »
