@@ -70,6 +70,8 @@ function ocr_read_upload($file)
         return [null, "Cette image n'est pas lisible."];
     }
     // Réduit les très grandes photos (plus rapide, aussi précis).
+    $w = imagesx($im);
+    $h = imagesy($im);
     if ($w > 2200) {
         $nh = (int)round($h * 2000 / $w);
         $small = imagecreatetruecolor(2000, $nh);
