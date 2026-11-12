@@ -10,6 +10,10 @@ function html_open($title)
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<meta name="color-scheme" content="light dark">';
     echo '<meta name="theme-color" content="#6F8672">';
+    echo '<link rel="manifest" href="' . e(url('manifest.php')) . '">';
+    echo '<link rel="apple-touch-icon" href="' . e(url('assets/icons/apple-touch-icon.png')) . '">';
+    echo '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">';
+    echo '<meta name="apple-mobile-web-app-title" content="' . e($brand) . '">';
     echo '<script src="' . e(url('assets/theme.js')) . '"></script>';
     echo '<title>' . e($title) . ' · ' . e($brand) . '</title>';
     echo '<link rel="icon" href="' . e(url('assets/icon.svg')) . '" type="image/svg+xml">';

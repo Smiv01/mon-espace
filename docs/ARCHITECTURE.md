@@ -111,6 +111,6 @@ Les tests de bout en bout ont été exécutés sur un serveur de développement 
 
 ## 9. Feuille de route
 
-Fait : comptes, Agenda, Notes, Budget, Frigos et courses, Ma Journée, Localisation, Notifications.
+Fait : comptes, Agenda, Notes, Budget, Frigos et courses, Ma Journée, Localisation, Notifications, application installable (PWA : `manifest.php`, `sw.js`, `offline.html` ; le service worker ne met en cache que les fichiers publics de l'interface, jamais une page personnelle).
 
-À venir : connexion avec Google (identifiant client requis), notifications sur le téléphone, application installable (PWA), sauvegarde automatique, modification d'un produit du stock.
+À venir : connexion avec Google (identifiant client requis), notifications sur le téléphone, sauvegarde automatique, modification d'un produit du stock.

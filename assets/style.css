@@ -626,3 +626,6 @@ a.notif:hover { text-decoration: none; border-color: var(--primary); }
 .map-zoom button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border); background: var(--nav); color: var(--text); font-size: 20px; font-weight: 700; cursor: pointer; }
 .map-credit { position: absolute; right: 14px; bottom: 12px; margin: 0; padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,.85); color: #333; font-size: 11px; }
 .map-credit a { color: #333; }
+
+.offline { min-height: 100vh; display: grid; place-items: center; }
+[hidden] { display: none !important; }

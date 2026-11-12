@@ -66,3 +66,30 @@ document.querySelectorAll('[data-copy]').forEach(function (b) {
     });
   }
 })();
+
+// Application installable : service worker + bouton « Installer »
+(function () {
+  var link = document.querySelector('link[rel=manifest]');
+  if ('serviceWorker' in navigator && link && (window.isSecureContext || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register(new URL('sw.js', link.href).pathname).catch(function () {});
+  }
+  var btn = document.getElementById('install-btn');
+  var help = document.getElementById('install-help');
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    if (btn) { btn.hidden = false; if (help) help.hidden = true; }
+  });
+  if (btn) {
+    btn.addEventListener('click', function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.then(function () { deferred = null; btn.hidden = true; if (help) help.hidden = false; });
+    });
+  }
+  window.addEventListener('appinstalled', function () {
+    if (btn) btn.hidden = true;
+    if (help) { help.hidden = false; help.textContent = 'Mon Espace est installé sur cet appareil.'; }
+  });
+})();
