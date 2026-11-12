@@ -56,6 +56,7 @@ if (is_post()) {
 }
 
 $days = days_visible($userId);
+$memories = day_memories($userId, $today);
 app_open('Ma Journée', 'journees.php', $user);
 ?>
 <header class="page-hero">
@@ -68,6 +69,8 @@ app_open('Ma Journée', 'journees.php', $user);
   <div><strong>Aujourd'hui</strong><p class="muted small capitalize"><?= e(fr_date($today, true)) ?></p></div>
   <button class="btn btn-primary" type="submit">Écrire ma journée</button>
 </form>
+
+<?= day_memories_html($memories, true) ?>
 
 <details class="card mt">
   <summary><strong>+ Nouveau groupe partagé</strong></summary>

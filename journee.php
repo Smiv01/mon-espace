@@ -16,7 +16,8 @@ if (!$day) {
 }
 $did = (int)$day['id'];
 $isOwner = $day['role'] === 'owner';
-$tab = opt($_GET, 'tab', '') === 'partage' ? 'partage' : 'fil';
+$tabIn = (string)opt($_GET, 'tab', '');
+$tab = $tabIn === 'partage' ? 'partage' : ($tabIn === 'stats' ? 'stats' : 'fil');
 $self = 'journee.php?id=' . $did;
 $title = $day['kind'] === 'journal' ? 'Ma journée' : $day['title'];
 
@@ -200,8 +201,9 @@ app_open($title, 'journees.php', $user);
   <?php if ($exp !== ''): ?><p class="small late"><?= e($exp) ?></p><?php endif; ?>
 </div></header>
 
-<div class="tabs" role="tablist">
+<div class="tabs three" role="tablist">
   <a class="tab<?= $tab === 'fil' ? ' on' : '' ?>" href="<?= e(url($self)) ?>">Souvenirs (<?= $totalPosts ?>)</a>
+  <a class="tab<?= $tab === 'stats' ? ' on' : '' ?>" href="<?= e(url($self . '&tab=stats')) ?>">Stats</a>
   <a class="tab<?= $tab === 'partage' ? ' on' : '' ?>" href="<?= e(url($self . '&tab=partage')) ?>">Partage</a>
 </div>
 
@@ -216,6 +218,7 @@ app_open($title, 'journees.php', $user);
     <p class="muted small" id="photo-name"></p>
   </form>
 
+  <?= day_memories_html(day_memories($userId, today_for($user), $did), false) ?>
   <div class="feed mt">
     <?php if (!$posts): ?><div class="card muted">Rien pour l'instant. Ajoute une photo ou un message.</div><?php endif; ?>
     <?php $lastDay = ''; foreach ($posts as $p): $mine = (int)$p['user_id'] === $userId; $pDay = substr($p['created_at'], 0, 10);
@@ -244,6 +247,31 @@ app_open($title, 'journees.php', $user);
       <a class="btn btn-block" href="<?= e(url($self . '&n=' . min(3000, $limit + 30))) ?>">Voir les souvenirs plus anciens (<?= $totalPosts - count($posts) ?>)</a>
     <?php endif; ?>
   </div>
+<?php elseif ($tab === 'stats'): $st = day_stats($did, today_for($user)); ?>
+  <div class="card">
+    <h2>Statistiques</h2>
+    <div class="stat-grid">
+      <div class="stat"><strong><?= (int)$st['total'] ?></strong><span class="muted small">souvenirs</span></div>
+      <div class="stat"><strong><?= (int)$st['photos'] ?></strong><span class="muted small">photos</span></div>
+      <div class="stat"><strong><?= (int)$st['messages'] ?></strong><span class="muted small">messages</span></div>
+      <div class="stat"><strong><?= (int)$st['likes'] ?></strong><span class="muted small">❤️ au total</span></div>
+    </div>
+    <?php if ($st['first'] !== null): ?>
+      <p class="mt small">Premier souvenir le <strong><?= e(fr_date($st['first'])) ?></strong> · <strong><?= (int)$st['active_days'] ?></strong> jour<?= (int)$st['active_days'] > 1 ? 's' : '' ?> avec des souvenirs.</p>
+      <?php if ($st['best_day']): ?><p class="small">Meilleur jour : <strong><?= e(fr_date($st['best_day']['date'])) ?></strong> (<?= (int)$st['best_day']['n'] ?> souvenir<?= $st['best_day']['n'] > 1 ? 's' : '' ?>).</p><?php endif; ?>
+      <p class="small">Ces 30 derniers jours : <strong><?= (int)$st['last30'] ?></strong> souvenir<?= $st['last30'] > 1 ? 's' : '' ?>, contre <strong><?= (int)$st['prev30'] ?></strong> les 30 jours d'avant.</p>
+    <?php else: ?>
+      <p class="muted small mt">Pas encore de souvenirs : les statistiques apparaîtront dès le premier.</p>
+    <?php endif; ?>
+  </div>
+  <?php if ($st['by_member']): ?>
+  <div class="card mt">
+    <h2>Qui partage le plus</h2>
+    <?php foreach ($st['by_member'] as $bm): ?>
+      <div class="member-row"><span class="mini-av"><?= e(initial_of($bm['first_name'])) ?></span><span class="grow"><strong><?= e($bm['first_name'] ?: 'Quelqu\'un') ?></strong></span><span><?= (int)$bm['n'] ?></span></div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
 <?php else: ?>
   <div class="card">
     <h2>Qui participe ?</h2>

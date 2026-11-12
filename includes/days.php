@@ -84,6 +84,88 @@ function days_visible($userId)
     return $stmt->fetchAll();
 }
 
+/** Souvenirs d'il y a 1 semaine, 1 mois et 1 an (dans un groupe donné, ou dans tous mes groupes si $dayId = 0). */
+function day_memories($userId, $today, $dayId = 0)
+{
+    $out = [];
+    $now = gmdate('Y-m-d H:i:s');
+    foreach ([[7, 'Il y a 1 semaine'], [30, 'Il y a 1 mois'], [365, 'Il y a 1 an']] as $per) {
+        $date = gmdate('Y-m-d', strtotime($today . ' 12:00:00 UTC') - $per[0] * 86400);
+        $sql = 'SELECT p.id, p.day_id, p.body, p.photo_path, d.title, d.kind, pr.first_name
+                  FROM day_posts p JOIN days d ON d.id = p.day_id LEFT JOIN profiles pr ON pr.user_id = p.user_id
+                 WHERE DATE(p.created_at) = ?
+                   AND (d.expires_at IS NULL OR d.expires_at > ?)';
+        $args = [$date, $now];
+        if ($dayId > 0) {
+            $sql .= ' AND p.day_id = ?';
+            $args[] = (int)$dayId;
+        } else {
+            $sql .= ' AND (d.user_id = ? OR d.id IN (SELECT day_id FROM day_members WHERE user_id = ?))';
+            $args[] = (int)$userId;
+            $args[] = (int)$userId;
+        }
+        $stmt = db()->prepare($sql . ' ORDER BY p.id LIMIT 8');
+        $stmt->execute($args);
+        $rows = $stmt->fetchAll();
+        if ($rows) {
+            $out[] = ['label' => $per[1], 'date' => $date, 'posts' => $rows];
+        }
+    }
+    return $out;
+}
+
+/** Statistiques d'un groupe : totaux, contributions, rythme (30 derniers jours contre les 30 d'avant). */
+function day_stats($dayId, $today)
+{
+    $dayId = (int)$dayId;
+    $q = function ($sql, $args) {
+        $stmt = db()->prepare($sql);
+        $stmt->execute($args);
+        return $stmt;
+    };
+    $st = [];
+    $st['total'] = (int)$q('SELECT COUNT(*) FROM day_posts WHERE day_id = ?', [$dayId])->fetchColumn();
+    $st['photos'] = (int)$q('SELECT COUNT(*) FROM day_posts WHERE day_id = ? AND photo_path IS NOT NULL', [$dayId])->fetchColumn();
+    $st['messages'] = (int)$q("SELECT COUNT(*) FROM day_posts WHERE day_id = ? AND body IS NOT NULL AND body <> ''", [$dayId])->fetchColumn();
+    $st['likes'] = (int)$q('SELECT COUNT(*) FROM day_reactions r JOIN day_posts p ON p.id = r.post_id WHERE p.day_id = ?', [$dayId])->fetchColumn();
+    $st['by_member'] = $q('SELECT pr.first_name, COUNT(*) AS n FROM day_posts p LEFT JOIN profiles pr ON pr.user_id = p.user_id WHERE p.day_id = ? GROUP BY p.user_id, pr.first_name ORDER BY n DESC LIMIT 10', [$dayId])->fetchAll();
+    $st['active_days'] = (int)$q('SELECT COUNT(DISTINCT DATE(created_at)) FROM day_posts WHERE day_id = ?', [$dayId])->fetchColumn();
+    $best = $q('SELECT DATE(created_at) AS d, COUNT(*) AS n FROM day_posts WHERE day_id = ? GROUP BY DATE(created_at) ORDER BY n DESC, d DESC LIMIT 1', [$dayId])->fetch();
+    $st['best_day'] = $best ? ['date' => $best['d'], 'n' => (int)$best['n']] : null;
+    $first = $q('SELECT MIN(DATE(created_at)) FROM day_posts WHERE day_id = ?', [$dayId])->fetchColumn();
+    $st['first'] = $first ?: null;
+    $edge1 = gmdate('Y-m-d', strtotime($today . ' 12:00:00 UTC') - 30 * 86400);
+    $edge2 = gmdate('Y-m-d', strtotime($today . ' 12:00:00 UTC') - 60 * 86400);
+    $st['last30'] = (int)$q('SELECT COUNT(*) FROM day_posts WHERE day_id = ? AND DATE(created_at) > ?', [$dayId, $edge1])->fetchColumn();
+    $st['prev30'] = (int)$q('SELECT COUNT(*) FROM day_posts WHERE day_id = ? AND DATE(created_at) > ? AND DATE(created_at) <= ?', [$dayId, $edge2, $edge1])->fetchColumn();
+    return $st;
+}
+
+/** Affiche les cartes « souvenirs d'il y a… » (HTML). */
+function day_memories_html(array $mem, $showTitle)
+{
+    $html = '';
+    foreach ($mem as $m) {
+        $html .= '<div class="card memory-card mt"><strong>📅 ' . e($m['label']) . '</strong> <span class="muted small capitalize">' . e(fr_date($m['date'])) . '</span><div class="memory-grid">';
+        foreach ($m['posts'] as $p) {
+            $link = e(url('journee.php?id=' . (int)$p['day_id']));
+            $html .= '<a class="memory-item" href="' . $link . '">';
+            if ($p['photo_path']) {
+                $html .= '<img src="' . e(url('journee-photo.php?id=' . (int)$p['id'])) . '" alt="" loading="lazy">';
+            }
+            if ($p['body'] !== null && $p['body'] !== '') {
+                $html .= '<span class="small">' . e(mb_substr($p['body'], 0, 80)) . '</span>';
+            }
+            if ($showTitle) {
+                $html .= '<span class="muted small">' . e($p['kind'] === 'journal' ? 'Ma journée' : $p['title']) . '</span>';
+            }
+            $html .= '</a>';
+        }
+        $html .= '</div></div>';
+    }
+    return $html;
+}
+
 /** Texte « Disparaît dans N jours » pour une journée temporaire ('' si permanente). */
 function day_expiry_text($expiresAt)
 {

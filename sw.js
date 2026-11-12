@@ -1,7 +1,7 @@
 // Service worker de Lyvo.
 // Il ne garde en mémoire QUE les fichiers publics de l'interface (style, scripts, icônes) et une page « hors connexion ».
 // Aucune page de l'application (donc aucune donnée personnelle) n'est jamais mise en cache.
-var CACHE = 'lyvo-static-v2';
+var CACHE = 'lyvo-static-v3';
 var BASE = new URL('./', self.location).pathname;
 var PRECACHE = ['offline.html', 'assets/style.css', 'assets/theme.js', 'assets/app.js', 'assets/icon.svg', 'assets/icons/app-192.png'];
 
