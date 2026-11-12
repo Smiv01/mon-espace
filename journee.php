@@ -34,8 +34,8 @@ if (is_post()) {
         $count->execute([$did]);
         if (!once_valid()) {
             // double envoi : on ignore
-        } elseif ((int)$count->fetchColumn() >= 300) {
-            flash('error', 'Cette journée a déjà 300 souvenirs.');
+        } elseif ((int)$count->fetchColumn() >= 3000) {
+            flash('error', 'Ce groupe a déjà 3000 souvenirs. Supprime-en quelques-uns pour continuer.');
         } else {
             list($photo, $err) = save_day_photo(isset($_FILES['photo']) ? $_FILES['photo'] : null);
             if ($err !== null) {
@@ -75,12 +75,25 @@ if (is_post()) {
         }
     } elseif ($action === 'day_delete' && $isOwner) {
         day_remove($did);
-        flash('ok', 'Journée supprimée.');
+        flash('ok', 'Groupe supprimé.');
         redirect('journees.php');
     } elseif ($action === 'day_leave' && !$isOwner) {
         db()->prepare('DELETE FROM day_members WHERE day_id = ? AND user_id = ?')->execute([$did, $userId]);
-        flash('ok', 'Tu as quitté cette journée.');
+        flash('ok', 'Tu as quitté ce groupe.');
         redirect('journees.php');
+    } elseif ($action === 'duration_set' && $isOwner && $day['kind'] === 'album') {
+        $back = $self . '&tab=partage';
+        $mode = (string)opt($_POST, 'duration', 'forever');
+        $limitDays = (int)opt($_POST, 'limit_days', 0);
+        if ($mode === 'forever') {
+            db()->prepare('UPDATE days SET expires_at = NULL WHERE id = ?')->execute([$did]);
+            flash('ok', 'Le groupe est maintenant sans limite.');
+        } elseif ($mode === 'days' && $limitDays >= 1 && $limitDays <= 3650) {
+            db()->prepare('UPDATE days SET expires_at = ? WHERE id = ?')->execute([gmdate('Y-m-d H:i:s', time() + $limitDays * 86400), $did]);
+            flash('ok', 'Le groupe disparaîtra dans ' . $limitDays . ' jour' . ($limitDays > 1 ? 's' : '') . '.');
+        } else {
+            flash('error', 'Choisis une limite entre 1 et 3650 jours.');
+        }
     } elseif ($action === 'invite_create' && $isOwner) {
         $back = $self . '&tab=partage';
         $n1 = db()->prepare('SELECT COUNT(*) FROM day_invites WHERE day_id = ? AND used_at IS NULL AND expires_at > ?');
@@ -89,8 +102,8 @@ if (is_post()) {
         $n2->execute([$did]);
         if ((int)$n1->fetchColumn() >= 5) {
             flash('error', "Tu as déjà 5 invitations en attente. Annule-en une ou attends qu'elle soit utilisée.");
-        } elseif ((int)$n2->fetchColumn() >= 20) {
-            flash('error', 'Cette journée a déjà 20 participants.');
+        } elseif ((int)$n2->fetchColumn() >= 50) {
+            flash('error', 'Ce groupe a déjà 50 participants.');
         } elseif (once_valid()) {
             $token = bin2hex(random_bytes(16));
             db()->prepare('INSERT INTO day_invites (day_id, created_by, token_hash, expires_at) VALUES (?, ?, ?, ?)')
@@ -109,12 +122,16 @@ if (is_post()) {
     redirect($back);
 }
 
+$limit = max(20, min(3000, (int)opt($_GET, 'n', 30)));
+$totalStmt = db()->prepare('SELECT COUNT(*) FROM day_posts WHERE day_id = ?');
+$totalStmt->execute([$did]);
+$totalPosts = (int)$totalStmt->fetchColumn();
 $stmt = db()->prepare(
     'SELECT p.id, p.user_id, p.body, p.photo_path, p.created_at, pr.first_name,
             (SELECT COUNT(*) FROM day_reactions r WHERE r.post_id = p.id) AS n_likes,
             (SELECT COUNT(*) FROM day_reactions r WHERE r.post_id = p.id AND r.user_id = ?) AS i_liked
        FROM day_posts p LEFT JOIN profiles pr ON pr.user_id = p.user_id
-      WHERE p.day_id = ? ORDER BY p.id DESC LIMIT 300'
+      WHERE p.day_id = ? ORDER BY p.id DESC LIMIT ' . $limit
 );
 $stmt->execute([$userId, $did]);
 $posts = $stmt->fetchAll();
@@ -151,12 +168,12 @@ app_open($title, 'journees.php', $user);
 <a class="back-link" href="<?= e(url('journees.php')) ?>">← Ma Journée</a>
 <header class="page-head"><div>
   <h1><?= e($title) ?><?php if ($shared): ?> <span class="badge-shared">Partagé</span><?php endif; ?></h1>
-  <p class="muted capitalize"><?= e(fr_date($day['day_date'], true)) ?><?= $day['place'] ? ' · ' . e($day['place']) : '' ?></p>
+  <p class="muted capitalize"><?= $day['kind'] === 'album' && $day['expires_at'] === null ? 'Groupe sans limite · depuis le ' . e(fr_date($day['day_date'])) : e(fr_date($day['day_date'], true)) ?><?= $day['place'] ? ' · ' . e($day['place']) : '' ?></p>
   <?php if ($exp !== ''): ?><p class="small late"><?= e($exp) ?></p><?php endif; ?>
 </div></header>
 
 <div class="tabs" role="tablist">
-  <a class="tab<?= $tab === 'fil' ? ' on' : '' ?>" href="<?= e(url($self)) ?>">Souvenirs (<?= count($posts) ?>)</a>
+  <a class="tab<?= $tab === 'fil' ? ' on' : '' ?>" href="<?= e(url($self)) ?>">Souvenirs (<?= $totalPosts ?>)</a>
   <a class="tab<?= $tab === 'partage' ? ' on' : '' ?>" href="<?= e(url($self . '&tab=partage')) ?>">Partage</a>
 </div>
 
@@ -173,7 +190,10 @@ app_open($title, 'journees.php', $user);
 
   <div class="feed mt">
     <?php if (!$posts): ?><div class="card muted">Rien pour l'instant. Ajoute une photo ou un message.</div><?php endif; ?>
-    <?php foreach ($posts as $p): $mine = (int)$p['user_id'] === $userId; ?>
+    <?php $lastDay = ''; foreach ($posts as $p): $mine = (int)$p['user_id'] === $userId; $pDay = substr($p['created_at'], 0, 10);
+      if ($pDay !== $lastDay && $day['kind'] === 'album'): $lastDay = $pDay; ?>
+      <h3 class="section-h capitalize"><?= e(fr_date($pDay, true)) ?></h3>
+    <?php endif; ?>
       <article class="card post">
         <div class="post-head"><span class="mini-av"><?= e(initial_of($p['first_name'])) ?></span>
           <span class="grow"><strong><?= e($p['first_name'] ?: 'Quelqu\'un') ?><?= $mine ? ' (toi)' : '' ?></strong><span class="sub muted"><?= e(substr($p['created_at'], 11, 5)) ?> · <?= e(fr_date(substr($p['created_at'], 0, 10))) ?></span></span>
@@ -192,6 +212,9 @@ app_open($title, 'journees.php', $user);
         </form>
       </article>
     <?php endforeach; ?>
+    <?php if ($totalPosts > count($posts)): ?>
+      <a class="btn btn-block" href="<?= e(url($self . '&n=' . min(3000, $limit + 30))) ?>">Voir les souvenirs plus anciens (<?= $totalPosts - count($posts) ?>)</a>
+    <?php endif; ?>
   </div>
 <?php else: ?>
   <div class="card">
@@ -239,14 +262,29 @@ app_open($title, 'journees.php', $user);
       </div>
     <?php endforeach; ?>
   </div>
-  <form method="post" class="mt" data-confirm="Supprimer cette journée avec toutes ses photos, pour tout le monde ?">
+  <?php if ($day['kind'] === 'album'): ?>
+  <div class="card mt">
+    <h2>Durée du groupe</h2>
+    <p class="muted small"><?= $day['expires_at'] === null ? 'Ce groupe est sans limite : il reste tant que tu ne le supprimes pas.' : e($exp) . '.' ?></p>
+    <form method="post" class="mt">
+      <?= csrf_field() ?><input type="hidden" name="action" value="duration_set">
+      <div class="chips">
+        <label class="chip"><input type="radio" name="duration" value="forever"<?= $day['expires_at'] === null ? ' checked' : '' ?>><span>Sans limite</span></label>
+        <label class="chip"><input type="radio" name="duration" value="days"<?= $day['expires_at'] !== null ? ' checked' : '' ?>><span>Avec une limite</span></label>
+      </div>
+      <label class="field mt"><span>Nombre de jours à partir d'aujourd'hui (1 à 3650)</span><input class="input" type="number" name="limit_days" min="1" max="3650" value="30" inputmode="numeric"></label>
+      <button class="btn btn-block" type="submit">Enregistrer la durée</button>
+    </form>
+  </div>
+  <?php endif; ?>
+  <form method="post" class="mt" data-confirm="Supprimer ce groupe avec toutes ses photos, pour tout le monde ?">
     <?= csrf_field() ?><input type="hidden" name="action" value="day_delete">
-    <button class="btn btn-block" type="submit">Supprimer cette journée</button>
+    <button class="btn btn-block" type="submit">Supprimer ce groupe</button>
   </form>
   <?php else: ?>
-  <form method="post" class="mt" data-confirm="Quitter cette journée ?">
+  <form method="post" class="mt" data-confirm="Quitter ce groupe ?">
     <?= csrf_field() ?><input type="hidden" name="action" value="day_leave">
-    <button class="btn btn-block" type="submit">Quitter cette journée</button>
+    <button class="btn btn-block" type="submit">Quitter ce groupe</button>
   </form>
   <?php endif; ?>
 <?php endif; ?>
