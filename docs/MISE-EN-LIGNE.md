@@ -1,4 +1,4 @@
-# Mise en ligne de Mon Espace
+# Mise en ligne de Lyvo
 
 Pile retenue : hébergement gratuit InfinityFree (PHP 8.3, MySQL, https gratuit) + nom de domaine chez VENAME (paiement Mobile Money possible) + e-mails par Brevo (offre gratuite).
 
@@ -25,7 +25,7 @@ return [
 Créer un compte Brevo gratuit, valider l'adresse expéditeur, créer une clé API (SMTP & API), la coller ci-dessus. Sans cela, personne ne peut valider son inscription.
 
 ## 5. Vérifications
-- L'adresse commence par `https://` ; la page de profil propose « Installer Mon Espace ».
+- L'adresse commence par `https://` ; la page de profil propose « Installer Lyvo ».
 - Créer un compte : le code arrive par e-mail.
 - `install.php` et `dev-mails.php` répondent « Page introuvable ».
 

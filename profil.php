@@ -126,8 +126,8 @@ app_open('Profil et réglages', 'profil.php', $user);
 
   <section class="card" id="install-card">
     <h2>Installer l'application</h2>
-    <p class="muted small">Ajoute Mon Espace à l'écran d'accueil de ton téléphone : il s'ouvre en plein écran, comme une vraie application.</p>
-    <button class="btn btn-primary btn-block" type="button" id="install-btn" hidden>Installer Mon Espace</button>
+    <p class="muted small">Ajoute Lyvo à l'écran d'accueil de ton téléphone : il s'ouvre en plein écran, comme une vraie application.</p>
+    <button class="btn btn-primary btn-block" type="button" id="install-btn" hidden>Installer Lyvo</button>
     <p class="muted small" id="install-help">Sur iPhone : ouvre ce site dans Safari, touche <strong>Partager</strong>, puis <strong>Sur l'écran d'accueil</strong>. Sur Android (Chrome) : menu ⋮, puis <strong>Installer l'application</strong>. L'installation demande une adresse https une fois le site en ligne.</p>
   </section>
 

@@ -388,7 +388,7 @@ function send_mail($to, $subject, $body)
         return false;
     }
     $payload = json_encode(array(
-        'sender' => array('name' => (string)cfg('brand.name', 'Mon Espace'), 'email' => $from),
+        'sender' => array('name' => (string)cfg('brand.name', 'Lyvo'), 'email' => $from),
         'to' => array(array('email' => $to)),
         'subject' => $subject,
         'textContent' => $body,

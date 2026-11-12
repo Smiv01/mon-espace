@@ -90,6 +90,6 @@ document.querySelectorAll('[data-copy]').forEach(function (b) {
   }
   window.addEventListener('appinstalled', function () {
     if (btn) btn.hidden = true;
-    if (help) { help.hidden = false; help.textContent = 'Mon Espace est installé sur cet appareil.'; }
+    if (help) { help.hidden = false; help.textContent = 'Lyvo est installé sur cet appareil.'; }
   });
 })();

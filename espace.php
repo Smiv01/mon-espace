@@ -414,7 +414,7 @@ app_open($space['name'], 'espaces.php', $user);
   <?php if ($isOwner): ?>
   <div class="card mt">
     <h2>Inviter quelqu'un</h2>
-    <p class="muted small">Crée un lien, envoie-le (WhatsApp par exemple). Il marche une seule fois et pendant 7 jours. La personne doit avoir un compte Mon Espace et accepter pour rejoindre.</p>
+    <p class="muted small">Crée un lien, envoie-le (WhatsApp par exemple). Il marche une seule fois et pendant 7 jours. La personne doit avoir un compte Lyvo et accepter pour rejoindre.</p>
     <?php if ($newLink !== ''): ?>
       <div class="invite-box">
         <p class="small"><strong>Voilà ton lien</strong> (il ne sera plus affiché après cette page) :</p>
@@ -423,7 +423,7 @@ app_open($space['name'], 'espaces.php', $user);
         <?php endif; ?>
         <input class="input" id="invite-link" type="text" readonly value="<?= e($newLink) ?>" aria-label="Lien d'invitation">
         <button class="btn btn-block mt" type="button" data-copy="invite-link">Copier le lien</button>
-        <a class="btn btn-primary btn-block mt" target="_blank" rel="noopener" href="<?= e('https://wa.me/?text=' . rawurlencode('Rejoins « ' . $space['name'] . ' » sur Mon Espace : ' . $newLink)) ?>">Envoyer sur WhatsApp</a>
+        <a class="btn btn-primary btn-block mt" target="_blank" rel="noopener" href="<?= e('https://wa.me/?text=' . rawurlencode('Rejoins « ' . $space['name'] . ' » sur Lyvo : ' . $newLink)) ?>">Envoyer sur WhatsApp</a>
       </div>
     <?php endif; ?>
     <form method="post" class="mt">

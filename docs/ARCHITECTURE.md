@@ -1,4 +1,4 @@
-# Architecture de Mon Espace
+# Architecture de Lyvo
 
 Document de référence : comment l'application est construite, pourquoi, et comment la faire évoluer.
 

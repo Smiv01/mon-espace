@@ -25,7 +25,7 @@ $tables = array(
 );
 
 $data = array(
-    'application' => 'Mon Espace',
+    'application' => 'Lyvo',
     'exporte_le' => gmdate('Y-m-d H:i:s') . ' UTC',
 );
 foreach ($tables as $label => $table) {
@@ -41,6 +41,6 @@ $data['produits_en_stock'] = $stmt->fetchAll();
 
 $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 header('Content-Type: application/json; charset=utf-8');
-header('Content-Disposition: attachment; filename="mon-espace-' . gmdate('Y-m-d') . '.json"');
+header('Content-Disposition: attachment; filename="lyvo-' . gmdate('Y-m-d') . '.json"');
 header('Cache-Control: no-store');
 echo $json;

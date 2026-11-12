@@ -2,7 +2,7 @@
 // Configuration centralisée. Modifier ici suffit à renommer l'application.
 return [
     'brand' => [
-        'name'    => 'Mon Espace',
+        'name'    => 'Lyvo',
         'tagline' => 'Organise ta vie, partage tes moments, reste connecté.',
         'logo'    => 'ME',
     ],

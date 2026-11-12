@@ -1,4 +1,4 @@
-# Mon Espace
+# Lyvo
 
 Application web personnelle et de partage (PHP 5.5+ / MySQL, pensée pour WAMP puis un hébergement), en français, montants en FCFA (XOF).
 
