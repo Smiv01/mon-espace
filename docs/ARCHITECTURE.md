@@ -23,6 +23,7 @@ finances.php, comptes.php,       Budget : comptes, transactions, épargne, dette
   transactions.php, epargne.php,
   objectif.php, dettes.php, ajouter.php
 espaces.php, espace.php          Frigos : stock, courses, achat, partage
+export.php                         Sauvegarde : télécharger ses données en JSON (profil)
 journees.php, journee.php,       Ma Journée : journaux, albums, photos
   journee-photo.php
 localisation.php, cercle.php,    Localisation : cercles et positions
@@ -113,4 +114,4 @@ Les tests de bout en bout ont été exécutés sur un serveur de développement 
 
 Fait : comptes, Agenda, Notes, Budget, Frigos et courses, Ma Journée, Localisation, Notifications, application installable (PWA : `manifest.php`, `sw.js`, `offline.html` ; le service worker ne met en cache que les fichiers publics de l'interface, jamais une page personnelle).
 
-À venir : connexion avec Google (identifiant client requis), notifications sur le téléphone, sauvegarde automatique.
+À venir : connexion avec Google (identifiant client requis), notifications sur le téléphone, sauvegarde automatique (l'export manuel existe déjà).

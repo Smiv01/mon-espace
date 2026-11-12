@@ -132,6 +132,15 @@ app_open('Profil et réglages', 'profil.php', $user);
   </section>
 
   <section class="card">
+    <h2>Sauvegarder mes données</h2>
+    <p class="muted small">Télécharge un fichier avec tes comptes, transactions, dettes, tâches, notes, agenda et frigos. Les photos et les positions ne sont pas incluses.</p>
+    <form method="post" action="<?= e(url('export.php')) ?>">
+      <?= csrf_field() ?>
+      <button class="btn btn-block" type="submit">Télécharger mes données</button>
+    </form>
+  </section>
+
+  <section class="card">
     <h2>Mes informations</h2>
     <p class="muted"><?= e($user['email']) ?></p>
     <form method="post" novalidate>
