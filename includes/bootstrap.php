@@ -6,6 +6,10 @@ define('APP_ROOT', dirname(__DIR__));
 // Toutes les dates sont écrites par PHP dans ce fuseau, pas par MySQL.
 date_default_timezone_set('Africa/Abidjan');
 $GLOBALS['config'] = require APP_ROOT . '/config/config.php';
+// Réglages propres au serveur (base de données, clé d'envoi d'e-mails...) : fichier jamais versionné.
+if (is_file(APP_ROOT . '/config/config.local.php')) {
+    $GLOBALS['config'] = array_replace_recursive($GLOBALS['config'], require APP_ROOT . '/config/config.local.php');
+}
 
 // --- Compatibilité PHP 5.5 (WAMP ancien) : fonctions absentes avant PHP 7 -------------------
 // Ces fonctions ne sont définies que si PHP ne les fournit pas déjà.
@@ -376,8 +380,33 @@ function send_mail($to, $subject, $body)
             ->execute([$to, $subject, $body]);
         return;
     }
-    // Production : brancher ici un vrai service d'envoi (SMTP, API...).
-    error_log('send_mail() non configuré en production.');
+    // Production : envoi par l'API HTTPS de Brevo (les hébergeurs gratuits bloquent le SMTP classique).
+    $key = (string)cfg('mail.brevo_api_key', '');
+    $from = (string)cfg('mail.from_email', '');
+    if ($key === '' || $from === '' || !function_exists('curl_init')) {
+        error_log('send_mail() : clé Brevo ou adresse expéditeur manquante.');
+        return false;
+    }
+    $payload = json_encode(array(
+        'sender' => array('name' => (string)cfg('brand.name', 'Mon Espace'), 'email' => $from),
+        'to' => array(array('email' => $to)),
+        'subject' => $subject,
+        'textContent' => $body,
+    ));
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('accept: application/json', 'content-type: application/json', 'api-key: ' . $key));
+    curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code < 200 || $code >= 300) {
+        error_log('send_mail() : Brevo a répondu ' . $code);
+        return false;
+    }
+    return true;
 }
 
 function full_url($path)

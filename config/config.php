@@ -25,6 +25,13 @@ return [
     // Sous Windows, installe Tesseract puis, si besoin, mets par ex. 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'.
     'tesseract_path' => '',
 
+    // E-mails en production (code de vérification, mot de passe oublié) : clé API Brevo + adresse expéditeur validée.
+    // À renseigner dans config/config.local.php sur le serveur, jamais ici.
+    'mail' => [
+        'brevo_api_key' => '',
+        'from_email'    => '',
+    ],
+
     'security' => [
         'password_min'        => 10,
         'max_login_failures'  => 5,    // par e-mail ou par adresse IP
