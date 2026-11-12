@@ -61,6 +61,51 @@ if (is_post()) {
                 ? $it['name'] . ' : 1 ajouté à ta liste de courses.'
                 : $it['name'] . ' : il n\'y en a plus. Ajouté à ta liste de courses.');
         }
+    } elseif ($action === 'stock_edit') {
+        // Correction d'un produit : nom, date de péremption, et quantité en moins seulement (on ajoute via Courses).
+        $it = owned_item('space_items', $sid, post_id());
+        $name = post_str('name', 100);
+        $qty = parse_qty(opt($_POST, 'quantity', ''));
+        $date = post_str('expires_on', 10);
+        if (!$it) {
+            // produit introuvable : on ne fait rien
+        } elseif ($name === '') {
+            flash('error', 'Le produit a besoin d\'un nom.');
+            $back = $self . '&edit=' . (int)$it['id'];
+        } elseif ($qty === null || $qty > (int)$it['quantity']) {
+            flash('error', 'Quantité invalide : tu peux la corriger vers le bas. Pour en ajouter, passe par Courses.');
+            $back = $self . '&edit=' . (int)$it['id'];
+        } elseif ($date !== '' && !valid_date($date)) {
+            flash('error', 'Date de péremption invalide.');
+            $back = $self . '&edit=' . (int)$it['id'];
+        } else {
+            $pdo = db();
+            $pdo->beginTransaction();
+            try {
+                $exp = $date !== '' ? $date : null;
+                // Même produit (nom et date identiques) déjà en stock : on fusionne les quantités.
+                $stmt = $pdo->prepare('SELECT id, name, quantity, expires_on FROM space_items WHERE space_id = ? AND id <> ?');
+                $stmt->execute([$sid, $it['id']]);
+                $twin = null;
+                foreach ($stmt->fetchAll() as $o) {
+                    if (fold_text($o['name']) === fold_text($name) && (string)$o['expires_on'] === (string)$exp) {
+                        $twin = $o;
+                        break;
+                    }
+                }
+                if ($twin) {
+                    $pdo->prepare('UPDATE space_items SET quantity = quantity + ? WHERE id = ? AND space_id = ?')->execute([$qty, $twin['id'], $sid]);
+                    $pdo->prepare('DELETE FROM space_items WHERE id = ? AND space_id = ?')->execute([$it['id'], $sid]);
+                } else {
+                    $pdo->prepare('UPDATE space_items SET name = ?, quantity = ?, expires_on = ? WHERE id = ? AND space_id = ?')->execute([$name, $qty, $exp, $it['id'], $sid]);
+                }
+                $pdo->commit();
+            } catch (Exception $ex) {
+                $pdo->rollBack();
+                throw $ex;
+            }
+            flash('ok', 'Produit modifié.');
+        }
     } elseif ($action === 'stock_delete') {
         db()->prepare('DELETE FROM space_items WHERE id = ? AND space_id = ?')->execute([post_id(), $sid]);
         flash('ok', 'Produit supprimé.');
@@ -259,6 +304,10 @@ if (is_post()) {
 $stmt = db()->prepare('SELECT * FROM space_items WHERE space_id = ? ORDER BY expires_on IS NULL, expires_on, name');
 $stmt->execute([$sid]);
 $items = $stmt->fetchAll();
+$editItem = null;
+if ($tab === 'stock' && isset($_GET['edit'])) {
+    $editItem = owned_item('space_items', $sid, $_GET['edit']);
+}
 $stmt = db()->prepare('SELECT * FROM shopping_items WHERE space_id = ? ORDER BY id');
 $stmt->execute([$sid]);
 $shop = $stmt->fetchAll();
@@ -396,6 +445,17 @@ app_open($space['name'], 'espaces.php', $user);
     <button class="btn btn-block" type="submit">Quitter cet espace</button>
   </form>
   <?php endif; ?>
+<?php elseif ($tab === 'stock' && $editItem): ?>
+  <form method="post" class="card">
+    <?= csrf_field() ?><input type="hidden" name="action" value="stock_edit"><input type="hidden" name="id" value="<?= (int)$editItem['id'] ?>">
+    <h2>Modifier le produit</h2>
+    <label class="field"><span>Nom</span><input class="input" type="text" name="name" maxlength="100" value="<?= e($editItem['name']) ?>" required></label>
+    <label class="field"><span>Quantité (au maximum <?= (int)$editItem['quantity'] ?>)</span><input class="input" type="text" inputmode="numeric" name="quantity" maxlength="4" value="<?= (int)$editItem['quantity'] ?>"></label>
+    <label class="field"><span>À consommer avant (facultatif)</span><input class="input" type="date" name="expires_on" value="<?= e((string)$editItem['expires_on']) ?>"></label>
+    <p class="muted small">Pour en ajouter, passe par l'onglet Courses.</p>
+    <button class="btn btn-primary btn-block mt" type="submit">Enregistrer</button>
+    <a class="btn btn-block mt" href="<?= e(url($self)) ?>">Annuler</a>
+  </form>
 <?php elseif ($tab === 'stock'): ?>
   <p class="muted small">Le stock se remplit quand tu achètes depuis l'onglet <a href="<?= e(url($self . '&tab=courses')) ?>">Courses</a>. Appuie sur <strong>−</strong> quand tu en utilises un : il s'ajoute à ta liste de courses.</p>
   <div class="task-list mt">
@@ -409,6 +469,7 @@ app_open($space['name'], 'espaces.php', $user);
           <button class="qty-btn" type="submit" name="action" value="stock_minus" aria-label="En utiliser un">−</button>
           <span class="qty-val"><?= (int)$it['quantity'] ?><?= $it['unit'] ? ' <small>' . e($it['unit']) . '</small>' : '' ?></span>
         </form>
+        <a class="icon-btn" href="<?= e(url($self . '&edit=' . (int)$it['id'])) ?>" aria-label="Modifier">✎</a>
         <form method="post" class="inline" data-confirm="Supprimer ce produit ?">
           <?= csrf_field() ?><input type="hidden" name="action" value="stock_delete"><input type="hidden" name="id" value="<?= (int)$it['id'] ?>">
           <button class="icon-btn" type="submit" aria-label="Supprimer">🗑</button>

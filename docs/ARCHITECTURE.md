@@ -75,7 +75,7 @@ Frigos, journées et cercles fonctionnent de la même façon :
 
 ## 5. Les flux importants
 
-**Courses et stock (Frigos).** Le stock n'est jamais modifié directement : on ajoute à la liste de courses, puis « Acheté ✓ » (un produit) ou « J'ai fini mes courses » (toute la liste) ouvre l'écran d'achat : date de péremption par produit, et « Qui a payé ? ». Si c'est l'utilisateur, une dépense « Alimentation » est créée sur le compte choisi (jamais au-delà du solde). Le bouton « − » du stock remet le produit sur la liste. La photo d'un ticket passe par l'OCR puis par le même écran.
+**Courses et stock (Frigos).** Le stock n'est jamais modifié directement : on ajoute à la liste de courses, puis « Acheté ✓ » (un produit) ou « J'ai fini mes courses » (toute la liste) ouvre l'écran d'achat : date de péremption par produit, et « Qui a payé ? ». Si c'est l'utilisateur, une dépense « Alimentation » est créée sur le compte choisi (jamais au-delà du solde). Le bouton « − » du stock remet le produit sur la liste. Le crayon ✎ permet de corriger le nom et la date de péremption, et de réduire la quantité (jamais de l'augmenter : on passe par Courses) ; deux lignes identiques (même nom, même date) sont fusionnées. La photo d'un ticket passe par l'OCR puis par le même écran.
 
 **Ma Journée.** Un journal par jour et par personne (`kind = journal`), ou des albums nommés (`kind = album`). Les photos sont réduites à 1280 px, ré-encodées en JPEG (métadonnées supprimées) et rangées dans `storage/days`, servies par `journee-photo.php` après vérification de l'accès. Une journée « temporaire » a `expires_at` à 30 jours ; elle est effacée (photos comprises) au prochain passage dans le module.
 
@@ -113,4 +113,4 @@ Les tests de bout en bout ont été exécutés sur un serveur de développement 
 
 Fait : comptes, Agenda, Notes, Budget, Frigos et courses, Ma Journée, Localisation, Notifications, application installable (PWA : `manifest.php`, `sw.js`, `offline.html` ; le service worker ne met en cache que les fichiers publics de l'interface, jamais une page personnelle).
 
-À venir : connexion avec Google (identifiant client requis), notifications sur le téléphone, sauvegarde automatique, modification d'un produit du stock.
+À venir : connexion avec Google (identifiant client requis), notifications sur le téléphone, sauvegarde automatique.
