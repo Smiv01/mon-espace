@@ -36,7 +36,7 @@ if (is_post()) {
         if ($user && $user['email_verified_at'] === null && strlen($code) === 6
             && check_verification_code((int)$user['id'], $code)) {
             db()->prepare('UPDATE users SET email_verified_at = ? WHERE id = ?')->execute([now(), $user['id']]);
-            unset($_SESSION['pending_email']);
+            unset($_SESSION['pending_email'], $_SESSION['test_code']);
             login_user((int)$user['id']);
             redirect(after_login_target());
         }
@@ -48,6 +48,11 @@ if (is_post()) {
 auth_open('Vérifie ton adresse e-mail', 'Si ' . $email . ' peut être confirmée, un code à 6 chiffres vient d\'être envoyé.');
 if (cfg('env') === 'dev') {
     echo '<p class="muted small">Mode développement : aucun e-mail réel n\'est envoyé. Ouvre la <a href="' . e(url('dev-mails.php')) . '" target="_blank" rel="noopener">boîte de développement</a> pour lire le code.</p>';
+}
+$testCode = (string)(opt($_SESSION, 'test_code', ''));
+if ($testCode !== '' && cfg('env') !== 'dev') {
+    echo '<div class="card"><p class="small muted">Mode test : l\'envoi d\'e-mail n\'est pas encore activé. Voici ton code :</p>'
+        . '<p class="code-input" style="font-size:1.8rem;text-align:center;letter-spacing:.3em;margin:.4rem 0"><strong>' . e($testCode) . '</strong></p></div>';
 }
 ?>
 <form method="post" novalidate>

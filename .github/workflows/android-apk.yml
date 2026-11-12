@@ -1,0 +1,40 @@
+name: Construire l'APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compiler l'APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon
+      - name: Renommer
+        run: cp android/app/build/outputs/apk/release/app-release.apk Lyvo.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lyvo-apk
+          path: Lyvo.apk
+      - name: Publier dans les Releases (lien de téléchargement direct)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Lyvo APK (dernière version)
+          files: Lyvo.apk

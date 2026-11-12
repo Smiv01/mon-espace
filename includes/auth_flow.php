@@ -14,12 +14,21 @@ function issue_verification_code($userId, $email)
     db()->prepare('INSERT INTO email_verifications (user_id, code_hash, expires_at, created_at) VALUES (?, ?, ?, ?)')
         ->execute([$userId, hash_secret($userId . ':' . $code), in_minutes($ttl), now()]);
 
-    send_mail(
+    $sent = send_mail(
         $email,
         'Ton code de vérification',
         "Bonjour,\n\nTon code de vérification est : $code\n\nIl expire dans $ttl minutes. "
         . "Si tu n'es pas à l'origine de cette demande, ignore ce message."
     );
+
+    // Mode test (réglage mail.show_code_on_failure) : si l'e-mail n'a pas pu partir, le code est
+    // affiché sur la page de vérification, uniquement pour la personne qui vient de le demander.
+    // Jamais utilisé pour la récupération de mot de passe, et jamais en mode développement.
+    if ($sent === false && cfg('env') !== 'dev' && cfg('mail.show_code_on_failure', false)) {
+        $_SESSION['test_code'] = $code;
+    } else {
+        unset($_SESSION['test_code']);
+    }
 }
 
 function latest_code_age_seconds($userId)

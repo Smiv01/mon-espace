@@ -31,3 +31,18 @@ Créer un compte Brevo gratuit, valider l'adresse expéditeur, créer une clé A
 
 ## Limites de l'hébergement gratuit
 Pas de Tesseract (la lecture automatique des tickets/captures est désactivée : coller le texte du SMS reste possible), performances modestes, suspension possible en cas de forte charge. Pour une vraie ouverture au public : hébergement payant et sauvegardes automatiques.
+
+
+## Page administrateur
+
+`admin.php` n'est visible que par les adresses e-mail listées dans `config/config.local.php` :
+
+```php
+'admin' => ['emails' => ['ton-adresse@exemple.com']],
+```
+
+Elle affiche les inscriptions, des totaux d'usage (jamais le contenu des utilisateurs) et permet de valider à la main un compte en attente. Pour tout autre visiteur, la page répond 404.
+
+## Installation sur téléphone derrière InfinityFree
+
+Le filtre anti-robot d'InfinityFree bloque `manifest.php` quand le navigateur le demande sans cookie. Le lien du manifeste porte donc `crossorigin="use-credentials"` (voir `includes/layout.php`).

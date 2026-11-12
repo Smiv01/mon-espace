@@ -30,6 +30,14 @@ return [
     'mail' => [
         'brevo_api_key' => '',
         'from_email'    => '',
+        // Mode test : si l'e-mail ne peut pas partir, le code de vérification s'affiche à l'écran
+        // (inscription uniquement). À laisser à false dès que l'envoi d'e-mails fonctionne.
+        'show_code_on_failure' => false,
+    ],
+
+    // Administrateurs : e-mails autorisés à ouvrir admin.php. À renseigner dans config.local.php.
+    'admin' => [
+        'emails' => [],
     ],
 
     'security' => [

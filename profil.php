@@ -3,6 +3,7 @@ require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/layout.php';
 require __DIR__ . '/includes/auth_flow.php';
 require __DIR__ . '/includes/media.php';
+require __DIR__ . '/includes/admin.php';
 
 $user = require_login();
 $userId = (int)$user['id'];
@@ -123,6 +124,14 @@ app_open('Profil et réglages', 'profil.php', $user);
       </form>
     <?php endif; ?>
   </section>
+
+  <?php if (is_admin_user($user)): ?>
+  <section class="card">
+    <h2>Administration</h2>
+    <p class="muted small">Voir les inscrits et les statistiques de Lyvo.</p>
+    <a class="btn btn-primary btn-block" href="<?= e(url('admin.php')) ?>">Ouvrir l'administration</a>
+  </section>
+  <?php endif; ?>
 
   <section class="card" id="install-card">
     <h2>Installer l'application</h2>
