@@ -234,8 +234,9 @@ $shareForm = ob_get_clean(); ?>
 <?php endif; ?>
 
 <h2 class="section-h">Ma carte</h2>
-<form method="post" class="card">
+<form method="post" class="card" id="prefs-form">
   <?= csrf_field() ?><input type="hidden" name="action" value="prefs_save">
+  <div class="pin-preview-row"><span class="pin-preview" id="pin-preview" data-color="<?= e($prefs['color']) ?>" data-initial="<?= e(mb_strtoupper(mb_substr((string)$user['first_name'] !== '' ? (string)$user['first_name'] : 'M', 0, 1))) ?>"><?= e($prefs['emoji'] !== '' ? $prefs['emoji'] : mb_strtoupper(mb_substr((string)$user['first_name'] !== '' ? (string)$user['first_name'] : 'M', 0, 1))) ?></span><span class="muted small">Aperçu : la carte au-dessus change tout de suite. Appuie sur « Enregistrer » pour garder.</span></div>
   <p><strong>🎨 Personnaliser</strong></p>
   <p class="muted small">Style de la carte</p>
   <div class="chips">

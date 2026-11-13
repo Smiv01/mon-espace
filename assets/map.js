@@ -53,34 +53,52 @@
     return 'il y a ' + Math.floor(s / 3600) + ' h';
   }
 
-  function render() {
-    var W = el.clientWidth || 320, H = el.clientHeight || 280;
-    el.textContent = '';
-    var pts = allPoints().filter(function (p) { return p.lat !== null && p.lng !== null; });
-    if (!pts.length) {
-      var empty = document.createElement('div');
-      empty.className = 'map-empty';
-      empty.textContent = follow ? 'Recherche de ta position… Autorise la localisation quand ton téléphone te le demande.' : 'Aucune position à afficher pour le moment.';
-      el.appendChild(empty);
-      return;
-    }
-    var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+  // --- Carte déplaçable et zoomable au doigt (comme Snap) ---
+  var cen = null, curZ = 12, auto = true;       // centre et zoom courants ; auto = la carte se cadre toute seule
+  var ABIDJAN = { lat: 5.36, lng: -4.0083 };
+  function lngAt(x, z) { return x / (T * Math.pow(2, z)) * 360 - 180; }
+  function latAt(y, z) {
+    var n = Math.PI - 2 * Math.PI * y / (T * Math.pow(2, z));
+    return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  }
+  var layer = null, home = null;
+
+  function fit(pts, W, H) {
     var focus = follow && me && view === 'me' ? [me] : pts;
+    if (!focus.length) return { lat: ABIDJAN.lat, lng: ABIDJAN.lng, z: 12 };
+    var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180, z = 16;
     focus.forEach(function (p) {
       minLat = Math.min(minLat, p.lat); maxLat = Math.max(maxLat, p.lat);
       minLng = Math.min(minLng, p.lng); maxLng = Math.max(maxLng, p.lng);
     });
-    var z = 16;
     if (focus.length > 1) {
       for (z = 17; z > 2; z--) {
         if (px(maxLng, z) - px(minLng, z) <= W - 100 && py(minLat, z) - py(maxLat, z) <= H - 100) break;
       }
     }
-    z = Math.max(2, Math.min(18, z + zoomAdj));
-    var cx = (px(minLng, z) + px(maxLng, z)) / 2, cy = (py(minLat, z) + py(maxLat, z)) / 2;
-    var left = cx - W / 2, top = cy - H / 2, n = Math.pow(2, z);
-    for (var tx = Math.floor(left / T); tx <= Math.floor((left + W) / T); tx++) {
-      for (var ty = Math.floor(top / T); ty <= Math.floor((top + H) / T); ty++) {
+    z = Math.max(2, Math.min(18, z));
+    return { lat: latAt((py(minLat, z) + py(maxLat, z)) / 2, z), lng: lngAt((px(minLng, z) + px(maxLng, z)) / 2, z), z: z };
+  }
+
+  function render() {
+    var W = el.clientWidth || 320, H = el.clientHeight || 280;
+    el.textContent = '';
+    var pts = allPoints().filter(function (p) { return p.lat !== null && p.lng !== null; });
+    var z;
+    if (auto || !cen) {
+      var f = fit(pts, W, H);
+      cen = { lat: f.lat, lng: f.lng };
+      z = Math.max(2, Math.min(18, f.z + zoomAdj));
+    } else {
+      z = curZ;
+    }
+    curZ = z;
+    layer = document.createElement('div');
+    layer.className = 'map-layer';
+    el.appendChild(layer);
+    var left = px(cen.lng, z) - W / 2, top = py(cen.lat, z) - H / 2, n = Math.pow(2, z);
+    for (var tx = Math.floor(left / T) - 1; tx <= Math.floor((left + W) / T) + 1; tx++) {
+      for (var ty = Math.floor(top / T) - 1; ty <= Math.floor((top + H) / T) + 1; ty++) {
         if (ty < 0 || ty >= n) continue;
         var img = document.createElement('img');
         img.className = 'map-tile';
@@ -91,7 +109,7 @@
         img.src = tilesBase + '/' + z + '/' + (((tx % n) + n) % n) + '/' + ty + '.png';
         img.style.left = Math.round(tx * T - left) + 'px';
         img.style.top = Math.round(ty * T - top) + 'px';
-        el.appendChild(img);
+        layer.appendChild(img);
       }
     }
     if (trail.length > 1) {
@@ -104,7 +122,7 @@
       pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', meColor || '#6c5ce7');
       pl.setAttribute('stroke-width', '4'); pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round');
       pl.setAttribute('stroke-dasharray', '1 9'); pl.setAttribute('opacity', '.85');
-      svg.appendChild(pl); el.appendChild(svg);
+      svg.appendChild(pl); layer.appendChild(svg);
     }
     places.forEach(function (pc) {
       var pin = document.createElement('div');
@@ -113,7 +131,7 @@
       pin.style.top = Math.round(py(pc.lat, z) - top) + 'px';
       var d = document.createElement('span'); d.textContent = pc.emoji || '📍';
       var l = document.createElement('small'); l.textContent = pc.name;
-      pin.appendChild(d); pin.appendChild(l); el.appendChild(pin);
+      pin.appendChild(d); pin.appendChild(l); layer.appendChild(pin);
     });
     pts.forEach(function (p) {
       var pin = document.createElement('div');
@@ -126,25 +144,135 @@
       var lab = document.createElement('small');
       lab.textContent = p.me ? 'Moi' : p.name;
       pin.appendChild(dot); pin.appendChild(lab);
-      el.appendChild(pin);
+      layer.appendChild(pin);
     });
+    if (!pts.length) {
+      var empty = document.createElement('div');
+      empty.className = 'map-empty';
+      empty.textContent = follow ? 'Recherche de ta position… Autorise la localisation quand ton téléphone te le demande.' : 'Aucune position à afficher pour le moment.';
+      el.appendChild(empty);
+    }
     var ctl = document.createElement('div');
     ctl.className = 'map-zoom';
-    [['+', 1, 'Zoom avant'], ['−', -1, 'Zoom arrière']].forEach(function (d) {
+    function addBtn(label, aria, fn) {
       var b = document.createElement('button');
-      b.type = 'button'; b.textContent = d[0]; b.setAttribute('aria-label', d[2]);
-      b.addEventListener('click', function () { zoomAdj += d[1]; render(); });
+      b.type = 'button'; b.textContent = label; b.setAttribute('aria-label', aria); b.title = aria;
+      b.addEventListener('click', fn);
       ctl.appendChild(b);
-    });
-    if (follow) {
-      [['🎯', 'me', 'Me centrer sur ma position'], ['👥', 'all', 'Voir tout le monde']].forEach(function (d) {
-        var b = document.createElement('button');
-        b.type = 'button'; b.textContent = d[0]; b.setAttribute('aria-label', d[2]); b.title = d[2];
-        b.addEventListener('click', function () { view = d[1]; zoomAdj = 0; render(); });
-        ctl.appendChild(b);
-      });
     }
+    addBtn('+', 'Zoom avant', function () { zoomBy(1); });
+    addBtn('−', 'Zoom arrière', function () { zoomBy(-1); });
+    if (follow) {
+      addBtn('🎯', 'Me centrer sur ma position', function () { view = 'me'; zoomAdj = 0; auto = true; render(); });
+      addBtn('👥', 'Voir tout le monde', function () { view = 'all'; zoomAdj = 0; auto = true; render(); });
+    }
+    addBtn(el.classList.contains('map-full') ? '✕' : '⛶', el.classList.contains('map-full') ? 'Quitter le plein écran' : 'Carte en plein écran', function () {
+      var full = !el.classList.contains('map-full');
+      if (full) {
+        // Les cartes de la page ont un effet de verre qui empêche le vrai plein écran : on déplace la carte dans <body>
+        home = { parent: el.parentNode, next: el.nextSibling };
+        document.body.appendChild(el);
+      } else if (home && home.parent) {
+        home.parent.insertBefore(el, home.next);
+        home = null;
+      }
+      el.classList.toggle('map-full', full);
+      document.body.classList.toggle('map-lock', full);
+      render();
+    });
     el.appendChild(ctl);
+    if (el.classList.contains('map-full')) {
+      var cr = document.createElement('small');
+      cr.className = 'map-credit-in'; cr.textContent = '© OpenStreetMap';
+      el.appendChild(cr);
+    }
+  }
+
+  function zoomBy(d) {
+    var wasAuto = auto;
+    if (wasAuto) { auto = false; }
+    curZ = Math.max(2, Math.min(18, curZ + d));
+    render();
+  }
+
+  // Gestes : un doigt déplace, deux doigts zooment (la souris : glisser et molette)
+  var ptrs = {}, g = null;
+  function ptrList() { return Object.keys(ptrs).map(function (k) { return ptrs[k]; }); }
+  function startGesture() {
+    var l = ptrList();
+    if (!l.length) { g = null; return; }
+    var r = el.getBoundingClientRect();
+    if (l.length === 1) g = { x0: l[0].x, y0: l[0].y, d0: 0, tx: 0, ty: 0, s: 1, r: r };
+    else g = { x0: (l[0].x + l[1].x) / 2, y0: (l[0].y + l[1].y) / 2, d0: Math.max(10, Math.hypot(l[0].x - l[1].x, l[0].y - l[1].y)), tx: 0, ty: 0, s: 1, r: r };
+  }
+  function moveGesture() {
+    var l = ptrList();
+    if (!g || !l.length || !layer) return;
+    var mx = l.length > 1 ? (l[0].x + l[1].x) / 2 : l[0].x, my = l.length > 1 ? (l[0].y + l[1].y) / 2 : l[0].y;
+    var s = l.length > 1 && g.d0 ? Math.max(0.3, Math.min(4, Math.hypot(l[0].x - l[1].x, l[0].y - l[1].y) / g.d0)) : 1;
+    var ox = g.x0 - g.r.left, oy = g.y0 - g.r.top;
+    g.s = s;
+    g.tx = (mx - g.r.left) - s * ox;
+    g.ty = (my - g.r.top) - s * oy;
+    layer.style.transformOrigin = '0 0';
+    layer.style.transform = 'translate(' + g.tx + 'px,' + g.ty + 'px) scale(' + s + ')';
+  }
+  function commitGesture() {
+    if (!g || !cen) return;
+    if (Math.abs(g.tx) < 3 && Math.abs(g.ty) < 3 && Math.abs(g.s - 1) < 0.02) return;
+    var W = el.clientWidth || 320, H = el.clientHeight || 280, z = curZ;
+    var offx = (W / 2 - g.tx) / g.s - W / 2, offy = (H / 2 - g.ty) / g.s - H / 2;
+    var cx = px(cen.lng, z) + offx, cy = py(cen.lat, z) + offy;
+    cen = { lat: Math.max(-84, Math.min(84, latAt(cy, z))), lng: lngAt(cx, z) };
+    curZ = Math.max(2, Math.min(18, Math.round(z + Math.log(g.s) / Math.LN2)));
+    auto = false;
+    render();
+  }
+  el.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('.map-zoom')) return;
+    ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { el.setPointerCapture(e.pointerId); } catch (x) {}
+    if (g) commitGesture();
+    startGesture();
+  });
+  el.addEventListener('pointermove', function (e) {
+    if (!ptrs[e.pointerId]) return;
+    ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+    moveGesture();
+  });
+  function endPtr(e) {
+    if (!ptrs[e.pointerId]) return;
+    commitGesture();
+    delete ptrs[e.pointerId];
+    startGesture();
+  }
+  el.addEventListener('pointerup', endPtr);
+  el.addEventListener('pointercancel', endPtr);
+  el.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+  el.addEventListener('dblclick', function (e) {
+    if (e.target.closest && e.target.closest('.map-zoom')) return;
+    zoomBy(1);
+  });
+
+  // Aperçu en direct quand je personnalise ma carte (avant d'enregistrer)
+  var pv0 = document.getElementById('pin-preview');
+  if (pv0) { if (pv0.dataset.color) pv0.style.background = pv0.dataset.color; }
+  var prefsForm = document.getElementById('prefs-form');
+  if (prefsForm) {
+    prefsForm.addEventListener('change', function () {
+      var f = new FormData(prefsForm);
+      meEmoji = f.get('emoji') || '';
+      meColor = f.get('color') || meColor;
+      el.className = el.className.replace(/\bmap-theme-\w+/g, '').trim();
+      el.classList.add('map-theme-' + (f.get('theme') || 'classic'));
+      trailOn = f.get('trail') === '1';
+      render();
+      var pv = document.getElementById('pin-preview');
+      if (pv) { pv.textContent = meEmoji || (pv.dataset.initial || 'M'); pv.style.background = meColor; }
+    });
   }
 
   function renderPeople() {
@@ -264,6 +392,8 @@
     if (window.isSecureContext === false) { say('La localisation demande une connexion sécurisée (https).'); return; }
     var last = 0, first = true;
     say('Recherche de ta position…');
+    var retried = false;
+    function watch(high) {
     navigator.geolocation.watchPosition(function (pos) {
       me = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
       if (first) { first = false; say(sharing ? 'Position trouvée. Tes proches te voient en direct.' : 'Position trouvée. Personne ne la voit : elle reste sur ton téléphone.'); }
@@ -286,8 +416,12 @@
         })
         .catch(function () { say("Impossible d'envoyer ta position (connexion ?)."); });
     }, function (err) {
-      say(err && err.code === 1 ? "Autorisation refusée : active la localisation pour ce site dans les réglages de ton navigateur." : 'Position introuvable pour le moment.');
-    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+      if (err && err.code === 1) { say("Autorisation refusée : active la localisation pour ce site dans les réglages de ton téléphone, puis recharge la page."); return; }
+      if (high && !retried) { retried = true; say('Position difficile à trouver… nouvel essai.'); watch(false); return; }
+      say('Position introuvable pour le moment. Vérifie que le GPS est activé.');
+    }, { enableHighAccuracy: high, maximumAge: 10000, timeout: high ? 15000 : 40000 });
+    }
+    watch(true);
   }
 
   render();
