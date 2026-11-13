@@ -28,10 +28,10 @@ if (is_post()) {
     $back = $self;
     if ($action === 'share_start') {
         $hours = (int)opt($_POST, 'hours', 1);
-        if (!in_array($hours, [1, 4, 8], true)) {
+        if (!in_array($hours, [0, 1, 4, 8], true)) {
             $hours = 1;
         }
-        $exp = gmdate('Y-m-d H:i:s', time() + $hours * 3600);
+        $exp = geo_expiry_for($hours);
         $has = db()->prepare('SELECT id FROM location_shares WHERE user_id = ? AND circle_id = ?');
         $has->execute([$userId, $cid]);
         $sid = $has->fetchColumn();
@@ -40,7 +40,7 @@ if (is_post()) {
         } else {
             db()->prepare('INSERT INTO location_shares (user_id, circle_id, expires_at) VALUES (?, ?, ?)')->execute([$userId, $cid, $exp]);
         }
-        flash('ok', 'Tu partages ta position avec ce cercle pendant ' . $hours . ' h. Garde cette page ouverte pour qu\'elle se mette à jour.');
+        flash('ok', 'Tu partages ta position avec ce cercle' . ($hours === 0 ? ' jusqu\'à ce que tu arrêtes' : ' pendant ' . $hours . ' h') . '. Garde l\'appli ouverte pour qu\'elle se mette à jour.');
     } elseif ($action === 'share_stop') {
         db()->prepare('DELETE FROM location_shares WHERE user_id = ? AND circle_id = ?')->execute([$userId, $cid]);
         flash('ok', 'Partage arrêté. Ta position a été effacée.');
@@ -146,17 +146,18 @@ app_open($c['name'], 'localisation.php', $user);
 
   <div class="card mt">
     <?php if ($iShare): ?>
-      <p><strong>Tu partages ta position</strong> jusqu'à <?= e($myUntil) ?>. Garde cette page ouverte pour qu'elle se mette à jour.</p>
+      <p><strong>Tu partages ta position</strong> <?= $myUntil === '' ? 'jusqu\'à ce que tu arrêtes' : 'jusqu\'à ' . e($myUntil) ?>. Garde l'appli ouverte pour qu'elle se mette à jour.</p>
       <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="share_stop"><button class="btn btn-block" type="submit">Arrêter le partage maintenant</button></form>
     <?php else: ?>
       <p><strong>Partager ma position avec ce cercle</strong></p>
-      <p class="muted small">Ton navigateur te demandera l'autorisation. Tu choisis la durée ; le partage s'arrête tout seul.</p>
+      <p class="muted small">Ton navigateur te demandera l'autorisation. Tu choisis la durée, ou « sans limite » jusqu'à ce que tu arrêtes.</p>
       <form method="post">
         <?= csrf_field() ?><input type="hidden" name="action" value="share_start">
         <div class="chips">
           <label class="chip"><input type="radio" name="hours" value="1" checked><span>1 heure</span></label>
           <label class="chip"><input type="radio" name="hours" value="4"><span>4 heures</span></label>
           <label class="chip"><input type="radio" name="hours" value="8"><span>8 heures</span></label>
+          <label class="chip"><input type="radio" name="hours" value="0"><span>Sans limite</span></label>
         </div>
         <button class="btn btn-primary btn-block mt" type="submit">Partager ma position</button>
       </form>

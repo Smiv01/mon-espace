@@ -6,6 +6,9 @@
   var tilesBase = el.dataset.tiles || 'https://tile.openstreetmap.org';
   var points = [];
   var zoomAdj = 0;
+  var follow = el.dataset.follow === '1';   // page Localisation : ma position s'affiche toujours (sur mon téléphone seulement)
+  var me = null;                            // ma position détectée par l'appareil
+  var view = 'me';                          // 'me' = centré sur moi, 'all' = tout le monde
   var status = document.getElementById('geo-status');
   var people = document.getElementById('people');
 
@@ -16,6 +19,23 @@
     lat = Math.max(-85, Math.min(85, lat));
     var r = lat * Math.PI / 180;
     return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z) * T;
+  }
+  function dist(a, b) {
+    var R = 6371000, r = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function distText(m) {
+    if (m < 50) return 'à côté de toi';
+    if (m < 1000) return 'à ' + Math.round(m / 10) * 10 + ' m';
+    return 'à ' + (m / 1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',') + ' km';
+  }
+  // Points à dessiner : ceux du serveur (sans moi si je me connais déjà) + moi (position de l'appareil)
+  function allPoints() {
+    var list = points.filter(function (p) { return !(me && p.me); });
+    if (me) list.push({ name: 'Moi', me: true, lat: me.lat, lng: me.lng, acc: me.acc, ago: 0 });
+    return list;
   }
   function say(t) { if (status) status.textContent = t; }
 
@@ -29,21 +49,22 @@
   function render() {
     var W = el.clientWidth || 320, H = el.clientHeight || 280;
     el.textContent = '';
-    var pts = points.filter(function (p) { return p.lat !== null && p.lng !== null; });
+    var pts = allPoints().filter(function (p) { return p.lat !== null && p.lng !== null; });
     if (!pts.length) {
       var empty = document.createElement('div');
       empty.className = 'map-empty';
-      empty.textContent = 'Aucune position à afficher pour le moment.';
+      empty.textContent = follow ? 'Recherche de ta position… Autorise la localisation quand ton téléphone te le demande.' : 'Aucune position à afficher pour le moment.';
       el.appendChild(empty);
       return;
     }
     var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    pts.forEach(function (p) {
+    var focus = follow && me && view === 'me' ? [me] : pts;
+    focus.forEach(function (p) {
       minLat = Math.min(minLat, p.lat); maxLat = Math.max(maxLat, p.lat);
       minLng = Math.min(minLng, p.lng); maxLng = Math.max(maxLng, p.lng);
     });
     var z = 16;
-    if (pts.length > 1) {
+    if (focus.length > 1) {
       for (z = 17; z > 2; z--) {
         if (px(maxLng, z) - px(minLng, z) <= W - 100 && py(minLat, z) - py(maxLat, z) <= H - 100) break;
       }
@@ -86,26 +107,45 @@
       b.addEventListener('click', function () { zoomAdj += d[1]; render(); });
       ctl.appendChild(b);
     });
+    if (follow) {
+      [['🎯', 'me', 'Me centrer sur ma position'], ['👥', 'all', 'Voir tout le monde']].forEach(function (d) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.textContent = d[0]; b.setAttribute('aria-label', d[2]); b.title = d[2];
+        b.addEventListener('click', function () { view = d[1]; zoomAdj = 0; render(); });
+        ctl.appendChild(b);
+      });
+    }
     el.appendChild(ctl);
   }
 
   function renderPeople() {
     if (!people) return;
     people.textContent = '';
-    if (!points.length) {
+    var others = follow ? points.filter(function (p) { return !p.me; }) : points;
+    if (!others.length) {
       var d = document.createElement('div');
       d.className = 'card muted';
       d.textContent = 'Personne ne partage sa position pour le moment.';
       people.appendChild(d);
       return;
     }
-    points.forEach(function (p) {
+    others.forEach(function (p) {
       var row = document.createElement('div'); row.className = 'task';
       var av = document.createElement('span'); av.className = 'mini-av'; av.textContent = (p.name || '?').charAt(0).toUpperCase();
       var main = document.createElement('span'); main.className = 'task-main';
       var s = document.createElement('strong'); s.textContent = p.name + (p.me ? ' (toi)' : '');
-      var sub = document.createElement('span'); sub.className = 'sub'; sub.textContent = ago(p.ago);
-      main.appendChild(s); main.appendChild(sub); row.appendChild(av); row.appendChild(main); people.appendChild(row);
+      var sub = document.createElement('span'); sub.className = 'sub';
+      var txt = ago(p.ago);
+      if (follow && me && p.lat !== null && p.lng !== null) txt += ' · ' + distText(dist(me, p));
+      sub.textContent = txt;
+      main.appendChild(s); main.appendChild(sub); row.appendChild(av); row.appendChild(main);
+      if (follow && p.lat !== null && p.lng !== null) {
+        var go = document.createElement('a');
+        go.className = 'btn'; go.textContent = 'Itinéraire'; go.target = '_blank'; go.rel = 'noopener';
+        go.href = 'https://www.google.com/maps/dir/?api=1&destination=' + p.lat + ',' + p.lng;
+        row.appendChild(go);
+      }
+      people.appendChild(row);
     });
   }
 
@@ -117,14 +157,20 @@
       .catch(function () {});
   }
 
-  // Envoi de ma position (seulement pendant un partage que j'ai activé)
-  function startSharing() {
-    if (el.dataset.sharing !== '1') return;
+  // Position de l'appareil : affichée tout de suite sur la carte (sur ce téléphone seulement),
+  // et envoyée aux proches uniquement pendant un partage que j'ai activé.
+  function startGeo() {
+    var sharing = el.dataset.sharing === '1';
+    if (!follow && !sharing) return;
     if (!navigator.geolocation) { say("Ton navigateur ne sait pas donner ta position."); return; }
     if (window.isSecureContext === false) { say('La localisation demande une connexion sécurisée (https).'); return; }
-    var last = 0;
+    var last = 0, first = true;
     say('Recherche de ta position…');
     navigator.geolocation.watchPosition(function (pos) {
+      me = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
+      if (first) { first = false; say(sharing ? 'Position trouvée. Tes proches te voient en direct.' : 'Position trouvée. Personne ne la voit : elle reste sur ton téléphone.'); }
+      render(); renderPeople();
+      if (!sharing) return;
       var now = Date.now();
       if (now - last < 15000) return;
       last = now;
@@ -141,12 +187,13 @@
         })
         .catch(function () { say("Impossible d'envoyer ta position (connexion ?)."); });
     }, function (err) {
-      say(err && err.code === 1 ? "Autorisation refusée : active la localisation pour ce site dans ton navigateur." : 'Position introuvable pour le moment.');
+      say(err && err.code === 1 ? "Autorisation refusée : active la localisation pour ce site dans les réglages de ton navigateur." : 'Position introuvable pour le moment.');
     }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
   }
 
   render();
-  startSharing();
+  renderPeople();
+  startGeo();
   setInterval(refresh, 15000);
   window.addEventListener('resize', render);
 })();

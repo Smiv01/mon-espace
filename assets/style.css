@@ -638,3 +638,5 @@ a.notif:hover { text-decoration: none; border-color: var(--primary); }
 .stat { display: flex; flex-direction: column; }
 .stat strong { font-size: 22px; }
 @media (max-width: 420px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.task .btn { padding: 6px 12px; font-size: 13px; margin-left: auto; flex: none; }
