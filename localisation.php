@@ -315,5 +315,5 @@ $shareForm = ob_get_clean(); ?>
     <button class="btn btn-primary btn-block mt" type="submit">Créer le cercle</button>
   </form>
 </details>
-<script src="<?= e(url('assets/map.js')) ?>" defer></script>
+<script src="<?= e(asset_url('assets/map.js')) ?>" defer></script>
 <?php app_close('localisation.php');

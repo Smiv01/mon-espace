@@ -14,16 +14,16 @@ function html_open($title)
     echo '<link rel="apple-touch-icon" href="' . e(url('assets/icons/apple-touch-icon.png')) . '">';
     echo '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">';
     echo '<meta name="apple-mobile-web-app-title" content="' . e($brand) . '">';
-    echo '<script src="' . e(url('assets/theme.js')) . '"></script>';
+    echo '<script src="' . e(asset_url('assets/theme.js')) . '"></script>';
     echo '<title>' . e($title) . ' · ' . e($brand) . '</title>';
     echo '<link rel="icon" href="' . e(url('assets/icon.svg')) . '" type="image/svg+xml">';
-    echo '<link rel="stylesheet" href="' . e(url('assets/style.css')) . '">';
+    echo '<link rel="stylesheet" href="' . e(asset_url('assets/style.css')) . '">';
     echo '</head><body>';
 }
 
 function html_close()
 {
-    echo '<script src="' . e(url('assets/app.js')) . '" defer></script></body></html>';
+    echo '<script src="' . e(asset_url('assets/app.js')) . '" defer></script></body></html>';
 }
 
 function render_flashes()

@@ -338,8 +338,8 @@ app_open($c['name'], 'localisation.php', $user);
 <?php endif; ?>
 <?php
 if ($tab === 'carte') {
-    echo '<script src="' . e(url('assets/map.js')) . '" defer></script>';
+    echo '<script src="' . e(asset_url('assets/map.js')) . '" defer></script>';
 } elseif ($tab === 'lieux') {
-    echo '<script src="' . e(url('assets/places.js')) . '" defer></script>';
+    echo '<script src="' . e(asset_url('assets/places.js')) . '" defer></script>';
 }
 app_close('localisation.php');

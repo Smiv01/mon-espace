@@ -92,6 +92,14 @@ function url($path = '')
     return base_path() . '/' . ltrim($path, '/');
 }
 
+/** Adresse d'un fichier public avec sa date de modification : le téléphone recharge le fichier dès qu'il change. */
+function asset_url($path)
+{
+    $file = APP_ROOT . '/' . ltrim($path, '/');
+    $v = is_file($file) ? (int)filemtime($file) : 0;
+    return url($path) . '?v=' . $v;
+}
+
 // --- Échappement et utilitaires ---------------------------------------------------
 function e($value)
 {

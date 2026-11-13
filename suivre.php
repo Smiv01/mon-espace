@@ -21,7 +21,7 @@ header('Referrer-Policy: no-referrer');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Suivi de position · <?= e(cfg('brand.name', 'Lyvo')) ?></title>
-<link rel="stylesheet" href="<?= e(url('assets/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('assets/style.css')) ?>">
 </head>
 <body>
 <main class="track-wrap">
@@ -37,7 +37,7 @@ header('Referrer-Policy: no-referrer');
     <p class="muted small" id="geo-status" aria-live="polite">La position se met à jour toute seule tant que la personne garde son appli ouverte.</p>
     <div class="task-list" id="people"></div>
     <p class="muted small mt">Ce lien est temporaire : la personne peut l'arrêter à tout moment.</p>
-    <script src="<?= e(url('assets/map.js')) ?>" defer></script>
+    <script src="<?= e(asset_url('assets/map.js')) ?>" defer></script>
   <?php endif; ?>
 </main>
 </body>
