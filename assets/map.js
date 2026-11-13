@@ -12,7 +12,14 @@
   var status = document.getElementById('geo-status');
   var people = document.getElementById('people');
 
+  var places = [], trail = [];
+  var meEmoji = el.dataset.meEmoji || '', meColor = el.dataset.meColor || '';
+  var trailOn = el.dataset.trailOn === '1';
+  var arrivedSent = {};
   try { points = JSON.parse(el.dataset.points || '[]'); } catch (e) { points = []; }
+  try { places = JSON.parse(el.dataset.places || '[]'); } catch (e) { places = []; }
+  try { trail = JSON.parse(el.dataset.trail || '[]'); } catch (e) { trail = []; }
+  if (el.dataset.theme) el.classList.add('map-theme-' + el.dataset.theme);
 
   function px(lng, z) { return (lng + 180) / 360 * Math.pow(2, z) * T; }
   function py(lat, z) {
@@ -34,7 +41,7 @@
   // Points à dessiner : ceux du serveur (sans moi si je me connais déjà) + moi (position de l'appareil)
   function allPoints() {
     var list = points.filter(function (p) { return !(me && p.me); });
-    if (me) list.push({ name: 'Moi', me: true, lat: me.lat, lng: me.lng, acc: me.acc, ago: 0 });
+    if (me) list.push({ name: 'Moi', me: true, lat: me.lat, lng: me.lng, acc: me.acc, ago: 0, emoji: meEmoji, color: meColor });
     return list;
   }
   function say(t) { if (status) status.textContent = t; }
@@ -87,13 +94,35 @@
         el.appendChild(img);
       }
     }
+    if (trail.length > 1) {
+      var NS = 'http://www.w3.org/2000/svg';
+      var svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('class', 'map-trail');
+      svg.setAttribute('width', W); svg.setAttribute('height', H);
+      var pl = document.createElementNS(NS, 'polyline');
+      pl.setAttribute('points', trail.map(function (t) { return Math.round(px(t[1], z) - left) + ',' + Math.round(py(t[0], z) - top); }).join(' '));
+      pl.setAttribute('fill', 'none'); pl.setAttribute('stroke', meColor || '#6c5ce7');
+      pl.setAttribute('stroke-width', '4'); pl.setAttribute('stroke-linecap', 'round'); pl.setAttribute('stroke-linejoin', 'round');
+      pl.setAttribute('stroke-dasharray', '1 9'); pl.setAttribute('opacity', '.85');
+      svg.appendChild(pl); el.appendChild(svg);
+    }
+    places.forEach(function (pc) {
+      var pin = document.createElement('div');
+      pin.className = 'map-pin ' + (pc.kind === 'meeting' ? 'meeting' : 'place');
+      pin.style.left = Math.round(px(pc.lng, z) - left) + 'px';
+      pin.style.top = Math.round(py(pc.lat, z) - top) + 'px';
+      var d = document.createElement('span'); d.textContent = pc.emoji || '📍';
+      var l = document.createElement('small'); l.textContent = pc.name;
+      pin.appendChild(d); pin.appendChild(l); el.appendChild(pin);
+    });
     pts.forEach(function (p) {
       var pin = document.createElement('div');
-      pin.className = 'map-pin' + (p.me ? ' me' : '');
+      pin.className = 'map-pin' + (p.me ? ' me live' : '');
       pin.style.left = Math.round(px(p.lng, z) - left) + 'px';
       pin.style.top = Math.round(py(p.lat, z) - top) + 'px';
       var dot = document.createElement('span');
-      dot.textContent = (p.name || '?').charAt(0).toUpperCase();
+      dot.textContent = p.emoji ? p.emoji : (p.name || '?').charAt(0).toUpperCase();
+      if (p.color) dot.style.background = p.color;
       var lab = document.createElement('small');
       lab.textContent = p.me ? 'Moi' : p.name;
       pin.appendChild(dot); pin.appendChild(lab);
@@ -131,7 +160,8 @@
     }
     others.forEach(function (p) {
       var row = document.createElement('div'); row.className = 'task';
-      var av = document.createElement('span'); av.className = 'mini-av'; av.textContent = (p.name || '?').charAt(0).toUpperCase();
+      var av = document.createElement('span'); av.className = 'mini-av'; av.textContent = p.emoji ? p.emoji : (p.name || '?').charAt(0).toUpperCase();
+      if (p.color) av.style.background = p.color;
       var main = document.createElement('span'); main.className = 'task-main';
       var s = document.createElement('strong'); s.textContent = p.name + (p.me ? ' (toi)' : '');
       var sub = document.createElement('span'); sub.className = 'sub';
@@ -149,11 +179,79 @@
     });
   }
 
+  // Mon trajet du jour (visible par moi seul) : un point au plus toutes les 60 s
+  var lastTrail = 0;
+  function sendTrail(pos) {
+    if (!trailOn || !el.dataset.update) return;
+    var now = Date.now();
+    if (now - lastTrail < 60000) return;
+    lastTrail = now;
+    trail.push([pos.coords.latitude, pos.coords.longitude]);
+    var b = new URLSearchParams();
+    b.set('csrf', el.dataset.csrf || ''); b.set('mode', 'trail');
+    b.set('lat', pos.coords.latitude); b.set('lng', pos.coords.longitude);
+    fetch(el.dataset.update, { method: 'POST', credentials: 'same-origin', body: b }).catch(function () {});
+  }
+
+  function postEvent(fields, done) {
+    var b = new URLSearchParams();
+    b.set('csrf', el.dataset.csrf || '');
+    Object.keys(fields).forEach(function (k) { b.set(k, fields[k]); });
+    fetch(el.dataset.eventUrl, { method: 'POST', credentials: 'same-origin', body: b })
+      .then(function (r) { return r.json(); }).then(function (j) { done(j); })
+      .catch(function () { done(null); });
+  }
+
+  // Arrivée à un lieu des cercles : on prévient une seule fois (le serveur revérifie la distance)
+  function checkArrival() {
+    if (!me || el.dataset.myShare !== '1') return;
+    var day = new Date().toISOString().slice(0, 10);
+    places.forEach(function (pc) {
+      if (pc.kind !== 'place') return;
+      var key = 'arr:' + pc.id;
+      var inside = dist(me, pc) <= 150;
+      if (!inside) { delete arrivedSent[key]; return; }
+      if (arrivedSent[key]) return;
+      var stored = null;
+      try { stored = window.localStorage.getItem(key); } catch (e) {}
+      if (stored && Date.now() - parseInt(stored, 10) < 1800000) { arrivedSent[key] = 1; return; }
+      arrivedSent[key] = 1;
+      try { window.localStorage.setItem(key, String(Date.now())); } catch (e) {}
+      postEvent({ kind: 'arrived', place_id: pc.id }, function () { refresh(); });
+    });
+  }
+
+  // Boutons « bien arrivé(e) » et SOS
+  document.querySelectorAll('[data-geo-event]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var kind = btn.dataset.geoEvent;
+      if (kind === 'sos' && btn.dataset.confirmText && !window.confirm(btn.dataset.confirmText)) return;
+      var out = document.getElementById('event-status');
+      var circles = [];
+      document.querySelectorAll('#safe-circles input:checked').forEach(function (i) { circles.push(i.value); });
+      if (kind === 'safe' && !circles.length) { if (out) out.textContent = 'Choisis au moins un cercle.'; return; }
+      btn.disabled = true;
+      function go(lat, lng) {
+        var f = { kind: kind };
+        if (kind === 'safe') f.circles = circles.join(',');
+        if (lat !== null) { f.lat = lat; f.lng = lng; }
+        postEvent(f, function (j) {
+          btn.disabled = false;
+          if (out) out.textContent = j && j.ok ? (kind === 'sos' ? 'Alerte envoyée à tes cercles.' : 'Message envoyé : tes proches savent que tu es bien arrivé(e).') : "Envoi impossible pour l'instant.";
+        });
+      }
+      if (me) { go(me.lat, me.lng); }
+      else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function (pos) { go(pos.coords.latitude, pos.coords.longitude); }, function () { go(null, null); }, { timeout: 8000, maximumAge: 60000 });
+      } else { go(null, null); }
+    });
+  });
+
   function refresh() {
     if (!el.dataset.url || !window.fetch) return;
     fetch(el.dataset.url, { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { if (j && j.points) { points = j.points; render(); renderPeople(); } })
+      .then(function (j) { if (j && j.points) { points = j.points; if (j.places) places = j.places; render(); renderPeople(); } })
       .catch(function () {});
   }
 
@@ -170,6 +268,7 @@
       me = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
       if (first) { first = false; say(sharing ? 'Position trouvée. Tes proches te voient en direct.' : 'Position trouvée. Personne ne la voit : elle reste sur ton téléphone.'); }
       render(); renderPeople();
+      sendTrail(pos);
       if (!sharing) return;
       var now = Date.now();
       if (now - last < 15000) return;
@@ -182,7 +281,7 @@
       fetch(el.dataset.update, { method: 'POST', credentials: 'same-origin', body: body })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) { var d = new Date(); say('Position envoyée à ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + '.'); refresh(); }
+          if (j && j.ok) { var d = new Date(); say('Position envoyée à ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + '.'); refresh(); checkArrival(); }
           else say("Le partage n'est plus actif.");
         })
         .catch(function () { say("Impossible d'envoyer ta position (connexion ?)."); });

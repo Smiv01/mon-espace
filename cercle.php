@@ -16,7 +16,8 @@ if (!$c) {
 }
 $cid = (int)$c['id'];
 $isOwner = $c['role'] === 'owner';
-$tab = opt($_GET, 'tab', '') === 'partage' ? 'partage' : 'carte';
+$tabIn = (string)opt($_GET, 'tab', '');
+$tab = in_array($tabIn, ['partage', 'lieux'], true) ? $tabIn : 'carte';
 $self = 'cercle.php?id=' . $cid;
 
 if (is_post()) {
@@ -44,6 +45,53 @@ if (is_post()) {
     } elseif ($action === 'share_stop') {
         db()->prepare('DELETE FROM location_shares WHERE user_id = ? AND circle_id = ?')->execute([$userId, $cid]);
         flash('ok', 'Partage arrêté. Ta position a été effacée.');
+    } elseif ($action === 'place_add') {
+        $back = $self . '&tab=lieux';
+        $kind = opt($_POST, 'kind', 'place') === 'meeting' ? 'meeting' : 'place';
+        $name = trim((string)opt($_POST, 'name', ''));
+        $emoji = trim((string)opt($_POST, 'emoji', ''));
+        $lat = opt($_POST, 'lat', '');
+        $lng = opt($_POST, 'lng', '');
+        $cnt = db()->prepare('SELECT COUNT(*) FROM circle_places WHERE circle_id = ?');
+        $cnt->execute([$cid]);
+        if ($name === '' || mb_strlen($name) > 60) {
+            flash('error', 'Donne un nom au lieu (60 caractères maximum).');
+        } elseif (!is_numeric($lat) || !is_numeric($lng) || abs((float)$lat) > 90 || abs((float)$lng) > 180 || ((float)$lat == 0 && (float)$lng == 0)) {
+            flash('error', 'Position introuvable. Appuie sur « Utiliser ma position » et autorise la localisation.');
+        } elseif ((int)$cnt->fetchColumn() >= 30) {
+            flash('error', 'Ce cercle a déjà 30 lieux.');
+        } elseif (once_valid()) {
+            if (mb_strlen($emoji) > 8) {
+                $emoji = '';
+            }
+            db()->prepare('INSERT INTO circle_places (circle_id, created_by, kind, name, emoji, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$cid, $userId, $kind, $name, $emoji !== '' ? $emoji : null, round((float)$lat, 6), round((float)$lng, 6)]);
+            flash('ok', $kind === 'meeting' ? 'Point de rendez-vous ajouté.' : 'Lieu ajouté.');
+        }
+    } elseif ($action === 'place_delete') {
+        $back = $self . '&tab=lieux';
+        if ($isOwner) {
+            db()->prepare('DELETE FROM circle_places WHERE id = ? AND circle_id = ?')->execute([post_id(), $cid]);
+        } else {
+            db()->prepare('DELETE FROM circle_places WHERE id = ? AND circle_id = ? AND created_by = ?')->execute([post_id(), $cid, $userId]);
+        }
+        flash('ok', 'Lieu supprimé.');
+    } elseif ($action === 'hide_toggle') {
+        $back = $self . '&tab=partage';
+        $who = post_id('user_id');
+        $inCircle = db()->prepare('SELECT 1 FROM circle_members WHERE circle_id = ? AND user_id = ? UNION SELECT 1 FROM circles WHERE id = ? AND user_id = ?');
+        $inCircle->execute([$cid, $who, $cid, $who]);
+        if ($who !== $userId && $inCircle->fetchColumn()) {
+            $ex = db()->prepare('SELECT id FROM location_hidden WHERE user_id = ? AND from_user_id = ?');
+            $ex->execute([$userId, $who]);
+            if ($ex->fetchColumn()) {
+                db()->prepare('DELETE FROM location_hidden WHERE user_id = ? AND from_user_id = ?')->execute([$userId, $who]);
+                flash('ok', 'Cette personne revoit ta position.');
+            } else {
+                db()->prepare('INSERT INTO location_hidden (user_id, from_user_id) VALUES (?, ?)')->execute([$userId, $who]);
+                flash('ok', 'Mode fantôme : cette personne ne voit plus ta position (elle ne sera pas prévenue).');
+            }
+        }
     } elseif ($action === 'circle_delete' && $isOwner) {
         circle_remove($cid);
         flash('ok', 'Cercle supprimé.');
@@ -100,6 +148,18 @@ foreach ($points as $p) {
     }
 }
 
+$hiddenFrom = [];
+$hq = db()->prepare('SELECT from_user_id FROM location_hidden WHERE user_id = ?');
+$hq->execute([$userId]);
+foreach ($hq->fetchAll() as $hr) {
+    $hiddenFrom[(int)$hr['from_user_id']] = true;
+}
+$places = [];
+if ($tab === 'lieux') {
+    $pq = db()->prepare('SELECT id, kind, name, emoji, lat, lng, created_by FROM circle_places WHERE circle_id = ? ORDER BY kind, id');
+    $pq->execute([$cid]);
+    $places = $pq->fetchAll();
+}
 $invites = [];
 $newLink = '';
 if ($tab === 'partage' && $isOwner) {
@@ -121,6 +181,14 @@ function c_initial($name)
 if ($tab === 'carte') {
     allow_map_tiles();
 }
+$mapPlaces = [];
+if ($tab === 'carte') {
+    foreach (geo_places($userId) as $pp) {
+        if ($pp['circle'] === $cid) {
+            $mapPlaces[] = $pp;
+        }
+    }
+}
 app_open($c['name'], 'localisation.php', $user);
 ?>
 <a class="back-link" href="<?= e(url('localisation.php')) ?>">← Localisation</a>
@@ -132,13 +200,14 @@ app_open($c['name'], 'localisation.php', $user);
 <div class="tabs" role="tablist">
   <a class="tab<?= $tab === 'carte' ? ' on' : '' ?>" href="<?= e(url($self)) ?>">Carte</a>
   <a class="tab<?= $tab === 'partage' ? ' on' : '' ?>" href="<?= e(url($self . '&tab=partage')) ?>">Membres</a>
+  <a class="tab<?= $tab === 'lieux' ? ' on' : '' ?>" href="<?= e(url($self . '&tab=lieux')) ?>">Lieux</a>
 </div>
 
 <?php if ($tab === 'carte'): ?>
   <div class="card map-card">
     <div id="map" class="map" data-points="<?= e(json_encode($points)) ?>" data-url="<?= e(url('localisation-data.php?id=' . $cid)) ?>"
          data-update="<?= e(url('localisation-update.php')) ?>" data-csrf="<?= e(csrf_token()) ?>" data-sharing="<?= $iShare ? '1' : '0' ?>"
-         data-tiles="https://tile.openstreetmap.org" role="img" aria-label="Carte des positions partagées"></div>
+         data-places="<?= e(json_encode($mapPlaces)) ?>" data-tiles="<?= e(geo_tiles_base()) ?>" role="img" aria-label="Carte des positions partagées"></div>
     <p class="map-credit small">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></p>
     <noscript><p class="muted small">La carte demande JavaScript. Les positions sont listées ci-dessous.</p></noscript>
   </div>
@@ -172,13 +241,50 @@ app_open($c['name'], 'localisation.php', $user);
         <span class="task-main"><strong><?= e($p['name']) ?><?= $p['me'] ? ' (toi)' : '' ?></strong><span class="sub"><?= e(ago_text($p['ago'])) ?></span></span></div>
     <?php endforeach; ?>
   </div>
+<?php elseif ($tab === 'lieux'): ?>
+  <div class="card">
+    <h2>Lieux et rendez-vous</h2>
+    <p class="muted small">Enregistre des lieux (Maison, École…) : quand quelqu'un qui partage sa position y arrive, le cercle est prévenu. Un point de rendez-vous apparaît sur la carte avec un lien d'itinéraire.</p>
+    <form method="post" id="place-form" class="mt">
+      <?= csrf_field() ?><?= once_field() ?><input type="hidden" name="action" value="place_add">
+      <input type="hidden" name="lat" id="place-lat"><input type="hidden" name="lng" id="place-lng">
+      <div class="chips">
+        <label class="chip"><input type="radio" name="kind" value="place" checked><span>📍 Lieu</span></label>
+        <label class="chip"><input type="radio" name="kind" value="meeting"><span>🚩 Rendez-vous</span></label>
+      </div>
+      <label class="field mt"><span>Nom</span><input class="input" type="text" name="name" maxlength="60" required placeholder="Maison, École, Parking…"></label>
+      <label class="field mt"><span>Emoji (facultatif)</span><input class="input" type="text" name="emoji" maxlength="8" placeholder="🏠"></label>
+      <button class="btn btn-block mt" type="button" id="place-locate">📍 Utiliser ma position actuelle</button>
+      <p class="muted small" id="place-status" aria-live="polite">Va à l'endroit voulu, puis appuie sur le bouton.</p>
+      <button class="btn btn-primary btn-block mt" type="submit" id="place-save" disabled>Ajouter</button>
+    </form>
+  </div>
+  <div class="task-list mt">
+    <?php if (!$places): ?><div class="card muted">Aucun lieu pour le moment.</div><?php endif; ?>
+    <?php foreach ($places as $pl): $canDel = $isOwner || (int)$pl['created_by'] === $userId; ?>
+      <div class="task"><span class="mini-av"><?= e($pl['emoji'] !== null && $pl['emoji'] !== '' ? $pl['emoji'] : ($pl['kind'] === 'meeting' ? '🚩' : '📍')) ?></span>
+        <span class="task-main"><strong><?= e($pl['name']) ?></strong><span class="sub"><?= $pl['kind'] === 'meeting' ? 'Rendez-vous' : 'Lieu' ?></span></span>
+        <a class="btn" target="_blank" rel="noopener" href="<?= e('https://www.google.com/maps/dir/?api=1&destination=' . $pl['lat'] . ',' . $pl['lng']) ?>">Itinéraire</a>
+        <?php if ($canDel): ?>
+        <form method="post" class="inline" data-confirm="Supprimer ce lieu ?"><?= csrf_field() ?><input type="hidden" name="action" value="place_delete"><input type="hidden" name="id" value="<?= (int)$pl['id'] ?>"><button class="icon-btn" type="submit" aria-label="Supprimer">✕</button></form>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+  </div>
 <?php else: ?>
   <div class="card">
     <h2>Qui est dans ce cercle ?</h2>
-    <div class="member-row"><span class="mini-av"><?= e(c_initial($isOwner ? $user['first_name'] : $ownerName)) ?></span><span><strong><?= e($isOwner ? ($user['first_name'] ?: 'Toi') : ($ownerName ?: 'Créateur')) ?></strong><span class="sub muted"><?= $isOwner ? 'Toi · créateur' : 'Créateur' ?></span></span></div>
+    <div class="member-row"><span class="mini-av"><?= e(c_initial($isOwner ? $user['first_name'] : $ownerName)) ?></span><span><strong><?= e($isOwner ? ($user['first_name'] ?: 'Toi') : ($ownerName ?: 'Créateur')) ?></strong><span class="sub muted"><?= $isOwner ? 'Toi · créateur' : 'Créateur' ?></span></span>
+      <?php if (!$isOwner): ?><form method="post" class="inline"><?= csrf_field() ?><input type="hidden" name="action" value="hide_toggle"><input type="hidden" name="user_id" value="<?= (int)$c['user_id'] ?>"><button class="btn" type="submit"><?= isset($hiddenFrom[(int)$c['user_id']]) ? '👻 Caché' : '👁 Visible' ?></button></form><?php endif; ?></div>
     <?php foreach ($members as $m): $isMe = (int)$m['id'] === $userId; ?>
       <div class="member-row"><span class="mini-av"><?= e(c_initial($m['first_name'])) ?></span>
         <span class="grow"><strong><?= e($m['first_name'] ?: 'Membre') ?></strong><span class="sub muted"><?= $isMe ? 'Toi · membre' : 'Membre' ?></span></span>
+        <?php if (!$isMe): ?>
+        <form method="post" class="inline">
+          <?= csrf_field() ?><input type="hidden" name="action" value="hide_toggle"><input type="hidden" name="user_id" value="<?= (int)$m['id'] ?>">
+          <button class="btn" type="submit"><?= isset($hiddenFrom[(int)$m['id']]) ? '👻 Caché' : '👁 Visible' ?></button>
+        </form>
+        <?php endif; ?>
         <?php if ($isOwner): ?>
         <form method="post" class="inline" data-confirm="Retirer cette personne du cercle ?">
           <?= csrf_field() ?><input type="hidden" name="action" value="member_remove"><input type="hidden" name="user_id" value="<?= (int)$m['id'] ?>">
@@ -187,6 +293,7 @@ app_open($c['name'], 'localisation.php', $user);
         <?php endif; ?>
       </div>
     <?php endforeach; ?>
+    <p class="muted small mt">👻 <strong>Mode fantôme</strong> : « Caché » veut dire que cette personne ne voit plus ta position, sans être prévenue. Appuie encore pour la remontrer.</p>
     <p class="muted small mt">Chacun décide seul s'il partage sa position et pour combien de temps. Faire partie du cercle ne partage rien automatiquement.</p>
   </div>
 
@@ -232,5 +339,7 @@ app_open($c['name'], 'localisation.php', $user);
 <?php
 if ($tab === 'carte') {
     echo '<script src="' . e(url('assets/map.js')) . '" defer></script>';
+} elseif ($tab === 'lieux') {
+    echo '<script src="' . e(url('assets/places.js')) . '" defer></script>';
 }
 app_close('localisation.php');

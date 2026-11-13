@@ -31,6 +31,9 @@ if (is_post()) {
     if ($action === 'post_add') {
         $body = trim((string)opt($_POST, 'body', ''));
         $body = mb_substr($body, 0, 1000);
+        $pLat = opt($_POST, 'lat', '');
+        $pLng = opt($_POST, 'lng', '');
+        $hasLoc = is_numeric($pLat) && is_numeric($pLng) && abs((float)$pLat) <= 90 && abs((float)$pLng) <= 180;
         $count = db()->prepare('SELECT COUNT(*) FROM day_posts WHERE day_id = ?');
         $count->execute([$did]);
         if (!once_valid()) {
@@ -63,8 +66,8 @@ if (is_post()) {
                     $errors[] = 'Limite de 3000 souvenirs atteinte.';
                     break;
                 }
-                db()->prepare('INSERT INTO day_posts (day_id, user_id, body, photo_path, created_at) VALUES (?, ?, ?, ?, ?)')
-                    ->execute([$did, $userId, $text !== '' ? $text : null, $photo, now()]);
+                db()->prepare('INSERT INTO day_posts (day_id, user_id, body, photo_path, lat, lng, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                    ->execute([$did, $userId, $text !== '' ? $text : null, $photo, $hasLoc ? round((float)$pLat, 5) : null, $hasLoc ? round((float)$pLng, 5) : null, now()]);
                 $made++;
             }
             if ($made === 0 && !$errors) {
@@ -156,7 +159,7 @@ $totalStmt = db()->prepare('SELECT COUNT(*) FROM day_posts WHERE day_id = ?');
 $totalStmt->execute([$did]);
 $totalPosts = (int)$totalStmt->fetchColumn();
 $stmt = db()->prepare(
-    'SELECT p.id, p.user_id, p.body, p.photo_path, p.created_at, pr.first_name,
+    'SELECT p.id, p.user_id, p.body, p.photo_path, p.lat, p.lng, p.created_at, pr.first_name,
             (SELECT COUNT(*) FROM day_reactions r WHERE r.post_id = p.id) AS n_likes,
             (SELECT COUNT(*) FROM day_reactions r WHERE r.post_id = p.id AND r.user_id = ?) AS i_liked
        FROM day_posts p LEFT JOIN profiles pr ON pr.user_id = p.user_id
@@ -213,9 +216,12 @@ app_open($title, 'journees.php', $user);
     <textarea class="input" name="body" rows="2" maxlength="1000" placeholder="Un message, un souvenir…" aria-label="Message"></textarea>
     <div class="compose-row">
       <label class="btn compose-photo">📷 Photos<input class="file-hidden" type="file" name="photos[]" multiple accept="image/jpeg,image/png,image/webp"></label>
+      <button class="btn" type="button" id="post-locate" aria-pressed="false">📍 Ajouter le lieu</button>
       <button class="btn btn-primary" type="submit">Publier</button>
     </div>
+    <input type="hidden" name="lat" id="post-lat"><input type="hidden" name="lng" id="post-lng">
     <p class="muted small" id="photo-name"></p>
+    <p class="muted small" id="post-loc-status" aria-live="polite"></p>
   </form>
 
   <?= day_memories_html(day_memories($userId, today_for($user), $did), false) ?>
@@ -236,6 +242,7 @@ app_open($title, 'journees.php', $user);
           <?php endif; ?>
         </div>
         <?php if ($p['photo_path']): ?><img class="post-photo" src="<?= e(url('journee-photo.php?id=' . (int)$p['id'])) ?>" alt="Photo de <?= e($p['first_name'] ?: 'la journée') ?>" loading="lazy"><?php endif; ?>
+        <?php if ($p['lat'] !== null && $p['lng'] !== null): ?><p class="small"><a target="_blank" rel="noopener" href="<?= e('https://www.openstreetmap.org/?mlat=' . $p['lat'] . '&mlon=' . $p['lng'] . '#map=16/' . $p['lat'] . '/' . $p['lng']) ?>">📍 Voir le lieu</a></p><?php endif; ?>
         <?php if ($p['body'] !== null && $p['body'] !== ''): ?><p class="post-body"><?= nl2br(e($p['body'])) ?></p><?php endif; ?>
         <form method="post" class="inline">
           <?= csrf_field() ?><input type="hidden" name="action" value="react"><input type="hidden" name="post_id" value="<?= (int)$p['id'] ?>">

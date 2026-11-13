@@ -12,8 +12,8 @@ $groups = [];
 foreach ($list as $n) {
     $groups[$n[0]][] = $n;
 }
-$order = ['Frigos', 'Agenda', 'Budget'];
-$icons = ['Frigos' => 'frigo', 'Agenda' => 'agenda', 'Budget' => 'budget'];
+$order = ['Localisation', 'Frigos', 'Agenda', 'Budget'];
+$icons = ['Localisation' => 'loc', 'Frigos' => 'frigo', 'Agenda' => 'agenda', 'Budget' => 'budget'];
 
 app_open('Notifications', 'notifications.php', $user);
 ?>

@@ -32,6 +32,15 @@ function notifications_for(array $user, $today)
         }
     }
 
+    // Localisation : alertes SOS, « bien arrivé(e) » et arrivées dans les dernières 24 h (seulement celles des autres)
+    require_once __DIR__ . '/geo.php';
+    foreach (array_slice(geo_events($userId, 10), 0, 10) as $ev) {
+        if ($ev['mine'] || $ev['ago'] > 86400) {
+            continue;
+        }
+        $out[] = ['Localisation', $ev['kind'] === 'sos' ? 'late' : 'info', geo_event_text($ev), $ev['circle'] . ' · ' . ago_text($ev['ago']), 'localisation.php'];
+    }
+
     // Agenda : tâches en retard ou du jour
     $stmt = db()->prepare("SELECT title, due_date, due_time FROM tasks WHERE user_id = ? AND status = 'todo' AND due_date IS NOT NULL AND due_date <= ? ORDER BY due_date, due_time LIMIT 20");
     $stmt->execute([$userId, $today]);

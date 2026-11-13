@@ -123,3 +123,21 @@ document.querySelectorAll('[data-copy]').forEach(function (b) {
     if (help) { help.hidden = false; help.textContent = 'Lyvo est installé sur cet appareil.'; }
   });
 })();
+
+// Souvenir avec un lieu (Ma Journée) : joint la position de l'appareil au prochain envoi
+(function () {
+  var b = document.getElementById('post-locate');
+  if (!b) return;
+  var st = document.getElementById('post-loc-status');
+  b.addEventListener('click', function () {
+    var la = document.getElementById('post-lat'), ln = document.getElementById('post-lng');
+    if (la.value) { la.value = ''; ln.value = ''; b.textContent = '📍 Ajouter le lieu'; b.setAttribute('aria-pressed', 'false'); st.textContent = 'Lieu retiré.'; return; }
+    if (!navigator.geolocation) { st.textContent = 'Ton navigateur ne sait pas donner ta position.'; return; }
+    st.textContent = 'Recherche de ta position…';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      la.value = pos.coords.latitude.toFixed(5); ln.value = pos.coords.longitude.toFixed(5);
+      b.textContent = '📍 Lieu ajouté ✓'; b.setAttribute('aria-pressed', 'true');
+      st.textContent = 'Le lieu sera joint à ton souvenir.';
+    }, function () { st.textContent = 'Position introuvable : autorise la localisation pour ce site.'; }, { timeout: 15000, maximumAge: 60000 });
+  });
+})();

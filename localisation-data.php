@@ -13,7 +13,7 @@ if (!$user) {
 }
 geo_purge();
 if (opt($_GET, 'all', '') === '1') {
-    echo json_encode(['points' => geo_visible_points((int)$user['id'], opt($user, 'timezone', 'Africa/Abidjan'))]);
+    echo json_encode(['points' => geo_visible_points((int)$user['id'], opt($user, 'timezone', 'Africa/Abidjan')), 'places' => geo_places((int)$user['id'])]);
     exit;
 }
 $c = circle_access((int)$user['id'], opt($_GET, 'id', 0));
